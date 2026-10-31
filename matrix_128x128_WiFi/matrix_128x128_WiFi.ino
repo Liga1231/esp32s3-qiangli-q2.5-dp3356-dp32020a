@@ -169,14 +169,14 @@ void set_matrix_pixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
 
     if (!is_bottom) {
         clr_mask = (1UL << PIN_R1) | (1UL << PIN_G1) | (1UL << PIN_B1);
-        if (r > 60) set_mask |= (1UL << PIN_R1);
-        if (g > 60) set_mask |= (1UL << PIN_G1);
-        if (b > 60) set_mask |= (1UL << PIN_B1);
+        if (r > 127) set_mask |= (1UL << PIN_R1);
+        if (g > 127) set_mask |= (1UL << PIN_G1);
+        if (b > 127) set_mask |= (1UL << PIN_B1);
     } else {
         clr_mask = (1UL << PIN_R2) | (1UL << PIN_G2) | (1UL << PIN_B2);
-        if (r > 60) set_mask |= (1UL << PIN_R2);
-        if (g > 60) set_mask |= (1UL << PIN_G2);
-        if (b > 60) set_mask |= (1UL << PIN_B2);
+        if (r > 127) set_mask |= (1UL << PIN_R2);
+        if (g > 127) set_mask |= (1UL << PIN_G2);
+        if (b > 127) set_mask |= (1UL << PIN_B2);
     }
 
     active_frame[line][col][ch] = (active_frame[line][col][ch] & ~clr_mask) | set_mask;

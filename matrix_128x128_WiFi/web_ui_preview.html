@@ -541,15 +541,15 @@
                 <div class="toolbar" style="margin-top: -6px;">
                     <div class="palette-row">
                         <span style="font-size: 0.8rem; color: var(--text-dim); margin-right: 4px;">Цвета:</span>
-                        <div class="color-swatch active" style="background: #ffffff;" data-color="#ffffff"></div>
-                        <div class="color-swatch" style="background: #ff0055;" data-color="#ff0055"></div>
-                        <div class="color-swatch" style="background: #ff5500;" data-color="#ff5500"></div>
-                        <div class="color-swatch" style="background: #ffcc00;" data-color="#ffcc00"></div>
-                        <div class="color-swatch" style="background: #00ff66;" data-color="#00ff66"></div>
-                        <div class="color-swatch" style="background: #00f0ff;" data-color="#00f0ff"></div>
-                        <div class="color-swatch" style="background: #0066ff;" data-color="#0066ff"></div>
-                        <div class="color-swatch" style="background: #cc00ff;" data-color="#cc00ff"></div>
-                        <input type="color" id="customColor" class="custom-color-input" value="#00f0ff" title="Выбрать свой цвет">
+                        <div class="color-swatch active" style="background: #ffffff;" data-color="#ffffff" title="Белый"></div>
+                        <div class="color-swatch" style="background: #ff0000;" data-color="#ff0000" title="Красный"></div>
+                        <div class="color-swatch" style="background: #ff7700;" data-color="#ff7700" title="Оранжевый"></div>
+                        <div class="color-swatch" style="background: #ffea00;" data-color="#ffff00" title="Жёлтый"></div>
+                        <div class="color-swatch" style="background: #00ff44;" data-color="#00ff00" title="Зелёный"></div>
+                        <div class="color-swatch" style="background: #00e5ff;" data-color="#00ffff" title="Голубой"></div>
+                        <div class="color-swatch" style="background: #0044ff;" data-color="#0000ff" title="Синий"></div>
+                        <div class="color-swatch" style="background: #cc00ff;" data-color="#ff00ff" title="Фиолетовый"></div>
+                        <input type="color" id="customColor" class="custom-color-input" value="#ff7700" title="Выбрать свой цвет">
                     </div>
                     <div style="font-size: 0.8rem; color: var(--text-dim);" id="coordsDisplay">X: 0, Y: 0</div>
                 </div>
@@ -738,6 +738,14 @@
         // Matrix geometry
         const MATRIX_WIDTH = 128;
         const MATRIX_HEIGHT = 128;
+
+        // 4x4 Bayer Matrix for ordered spatial dithering (enables Orange, Pastels, and subtle shades)
+        const BAYER_4X4 = [
+            [ 0,  8,  2, 10],
+            [12,  4, 14,  6],
+            [ 3, 11,  1,  9],
+            [15,  7, 13,  5]
+        ];
 
         // WebSocket setup (Auto-detect host or fallback to Demo Mode)
         let ws = null;
@@ -1093,11 +1101,14 @@
         window.addEventListener('touchmove', (e) => { if (isDrawing) e.preventDefault(); onPointerMove(e); }, { passive: false });
         window.addEventListener('touchend', onPointerUp);
 
-        // Realtime pixel network streamer
+        // Realtime pixel network streamer with ordered spatial dithering for blended colors (Orange, Pastels)
         function sendLivePixel(x, y, color) {
             const rgb = hexToRgb(color);
-            // Protocol: [TYPE=1 (PIXEL), X (1 byte), Y (1 byte), R, G, B]
-            const pkt = new Uint8Array([0x01, x & 0xFF, y & 0xFF, rgb.r, rgb.g, rgb.b]);
+            const thresh = (BAYER_4X4[y % 4][x % 4] + 0.5) * 16;
+            const r = rgb.r > thresh ? 255 : 0;
+            const g = rgb.g > thresh ? 255 : 0;
+            const b = rgb.b > thresh ? 255 : 0;
+            const pkt = new Uint8Array([0x01, x & 0xFF, y & 0xFF, r, g, b]);
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(pkt.buffer);
             } else {
@@ -1507,13 +1518,7 @@
         const imgBrightness = document.getElementById('imgBrightness');
         const imgContrast = document.getElementById('imgContrast');
 
-        // 4x4 Bayer Matrix for ordered dithering
-        const BAYER_4X4 = [
-            [ 0,  8,  2, 10],
-            [12,  4, 14,  6],
-            [ 3, 11,  1,  9],
-            [15,  7, 13,  5]
-        ];
+// (BAYER_4X4 is declared globally at top of script)
 
         function processImage() {
             if (!loadedImage) return;
@@ -1830,12 +1835,18 @@
             buffer[2] = MATRIX_HEIGHT & 0xFF;
 
             let outIdx = headerSize;
-            for (let i = 0; i < rgbaData.length; i += 4) {
-                let mask = 0;
-                if (rgbaData[i] > 127)     mask |= 0x01; // Red
-                if (rgbaData[i + 1] > 127) mask |= 0x02; // Green
-                if (rgbaData[i + 2] > 127) mask |= 0x04; // Blue
-                buffer[outIdx++] = mask;
+            let pixIdx = 0;
+            for (let y = 0; y < MATRIX_HEIGHT; y++) {
+                for (let x = 0; x < MATRIX_WIDTH; x++) {
+                    const i = pixIdx * 4;
+                    const thresh = (BAYER_4X4[y % 4][x % 4] + 0.5) * 16;
+                    let mask = 0;
+                    if (rgbaData[i] > thresh)     mask |= 0x01; // Red
+                    if (rgbaData[i + 1] > thresh) mask |= 0x02; // Green
+                    if (rgbaData[i + 2] > thresh) mask |= 0x04; // Blue
+                    buffer[outIdx++] = mask;
+                    pixIdx++;
+                }
             }
 
             if (ws && ws.readyState === WebSocket.OPEN) {
