@@ -2,19 +2,12 @@
 #include "splash_data.h"
 
 // ============================================================================
-// TEST 15: FULL 128x64 ARTWORK DISPLAY (CALIBRATED RGB + FULL 64-ROW GEOMETRY)
-// Displays full color artwork:
-//   - Smiling Emoji Face
-//   - Heart symbol
-//   - Typography: "ESP32-S3", "QIANG LI", "Q2.5 PRO", "112 FPS OK"
-//   - Outer Blue and Inner Green full border framing
-// Calibrated Pinout:
-//   Top Half:    GPIO 4 (Red), GPIO 5 (Green), GPIO 6 (Blue)
-//   Bottom Half: GPIO 7 (Red), GPIO 15 (Green), GPIO 16 (Blue)
-// Equalized exposure across all 64 rows (0..63) with zero bleed and zero cut.
+// PRODUCTION RELEASE (IDEAL): 128x64 HUB75 RGB MATRIX DRIVER (ESP32-S3 + DP3356)
+// Zero Debug, Zero Profiling, Zero Jitter, Maximum Throughput
+// Hardware: ESP32-S3 Super Mini + Qiangli Q2.5 Pro (128x64, 1/32 scan)
 // ============================================================================
 
-// Physical RGB LED outputs (calibrated with user feedback):
+// Physical RGB LED outputs:
 #define PIN_R1  4   // Top Half Red   (GPIO 4)
 #define PIN_G1  5   // Top Half Green (GPIO 5)
 #define PIN_B1  6   // Top Half Blue  (GPIO 6)
@@ -46,7 +39,7 @@
 #define CLK_MASK (1UL << (PIN_CLK - 32))
 #define LAT_MASK (1UL << (PIN_LE - 32))
 
-// Fast clock pulse with 4 NOPs (~16ns) for clean cable signal integrity
+// Clean clock pulse with optimal signal integrity
 #define CLK_PULSE() do { \
     GPIO.out1_w1ts.val = CLK_MASK; \
     __asm__ __volatile__("nop; nop; nop; nop;"); \
@@ -129,7 +122,7 @@ static inline void dp3364_change_row(uint32_t row) {
     set_gpio_for_clk_pulses(PIN_OE, (row == 0) ? 12 : 4);
 }
 
-// DP32020A advance row (exact Test 11 structure, zero gap, zero shift):
+// DP32020A advance row:
 static inline void dp32020_advance_row(uint32_t line) {
     uint32_t set_mask = 0;
     if (line == 0) set_mask |= (1UL << PIN_C);
@@ -138,7 +131,6 @@ static inline void dp32020_advance_row(uint32_t line) {
     set_mask |= (1UL << PIN_A);
     GPIO.out_w1ts = set_mask;
 
-    // Hold DCK high for > 500ns
     esp_rom_delay_us(1);
 
     GPIO.out_w1tc = (1UL << PIN_A);
@@ -156,7 +148,6 @@ static uint32_t active_frame[32][16][8];
 
 void setup() {
     setCpuFrequencyMhz(240);
-    Serial.begin(115200);
     pinMode(ONBOARD_LED, OUTPUT);
     digitalWrite(ONBOARD_LED, HIGH);
 
@@ -191,19 +182,8 @@ void setup() {
     dp3364_init();
 }
 
-// Profiling accumulators (per Section 4 of Optimization Task)
-static int64_t sum_frame_time = 0;
-static int64_t sum_rgb_time = 0;
-static int64_t sum_row_change_time = 0;
-static int64_t sum_pwm_time = 0;
-static int64_t sum_sync_time = 0;
-static uint32_t profile_frames = 0;
-
 void loop() {
-    int64_t t_frame_start = esp_timer_get_time();
-
     // 1. One-time sequence: transmit 13 config registers once, then hold VSYNC only
-    int64_t t_sync_start = esp_timer_get_time();
     static uint8_t s_cfg_idx = 0;
     if (s_cfg_idx < 13) {
         write_dp3356_reg(DP3356_CONFIG_REGS[s_cfg_idx]);
@@ -211,11 +191,6 @@ void loop() {
     } else {
         dp3364_vsync();
     }
-    int64_t t_sync_end = esp_timer_get_time();
-
-    int64_t frame_rgb_time = 0;
-    int64_t frame_row_change_time = 0;
-    int64_t frame_pwm_time = 0;
 
     // 2. Scan all 32 row pairs with FPGA-grade hardware blanking during data shifts
     for (uint32_t line = 0; line < ROWS; line++) {
@@ -232,8 +207,6 @@ void loop() {
         }
 
         // Step B: Shift 128 pixels of RGB data into DP3356 while PMOS is 100% BLANKED:
-        // Optimization: Linear pointer access + unrolled last-chip latch branch
-        int64_t t_rgb_start = esp_timer_get_time();
         const uint32_t *line_ptr = &active_frame[line][0][0];
         for (uint32_t col = 0; col < 16; col++) {
             // Chips 0..6: Standard 16 clock pulses without latch
@@ -252,55 +225,17 @@ void loop() {
             GPIO.out1_w1ts.val = CLK_MASK | LAT_MASK;
             GPIO.out1_w1tc.val = CLK_MASK | LAT_MASK;
         }
-        int64_t t_rgb_end = esp_timer_get_time();
-        frame_rgb_time += (t_rgb_end - t_rgb_start);
 
         // Step C: DP3356 Row Change Handshake on OE
-        int64_t t_rc_start = esp_timer_get_time();
         dp3364_change_row(line);
-        int64_t t_rc_end = esp_timer_get_time();
-        frame_row_change_time += (t_rc_end - t_rc_start);
 
         // Step D: UNBLANK PMOS (DCK=0): Turn ON current row for PWM emission
         GPIO.out_w1tc = (1UL << PIN_A);
         esp_rom_delay_us(1);
 
         // Step E: Required PWM timing burst (256 GCLK cycles per line, 99.4 FPS):
-        int64_t t_pwm_start = esp_timer_get_time();
         for (uint32_t i = 0; i < 32; i++) {
             CLK_PULSE_8();
         }
-        int64_t t_pwm_end = esp_timer_get_time();
-        frame_pwm_time += (t_pwm_end - t_pwm_start);
-    }
-
-    int64_t t_frame_end = esp_timer_get_time();
-    int64_t frame_total_us = t_frame_end - t_frame_start;
-
-    sum_frame_time += frame_total_us;
-    sum_rgb_time += frame_rgb_time;
-    sum_row_change_time += frame_row_change_time;
-    sum_pwm_time += frame_pwm_time;
-    sum_sync_time += (t_sync_end - t_sync_start);
-    profile_frames++;
-
-    // Print profiling report once every 100 frames (~1 sec)
-    if (profile_frames >= 100) {
-        float avg_frame = (float)sum_frame_time / profile_frames;
-        float avg_fps = 1000000.0f / avg_frame;
-        float avg_line_rgb = (float)sum_rgb_time / (profile_frames * 32);
-        float avg_row_change = (float)sum_row_change_time / (profile_frames * 32);
-        float avg_pwm = (float)sum_pwm_time / (profile_frames * 32);
-        float avg_sync = (float)sum_sync_time / profile_frames;
-
-        Serial.printf("[PROFILE] Frame: %.1f us | FPS: %.1f | RGB/line: %.2f us | RowChange: %.2f us | PWM/line: %.2f us | Sync: %.2f us\n",
-                      avg_frame, avg_fps, avg_line_rgb, avg_row_change, avg_pwm, avg_sync);
-
-        sum_frame_time = 0;
-        sum_rgb_time = 0;
-        sum_row_change_time = 0;
-        sum_pwm_time = 0;
-        sum_sync_time = 0;
-        profile_frames = 0;
     }
 }
