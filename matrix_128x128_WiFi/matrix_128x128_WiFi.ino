@@ -336,7 +336,6 @@ void setup() {
         memcpy_P(active_frame, MATRIX128_ARTWORK, sizeof(active_frame));
     }
 
-    Serial.begin(115200);
     delay(200);
     dp3364_init();
 
@@ -418,14 +417,4 @@ void loop() {
         CLK_PULSE_2();
     }
 
-    static int64_t last_time = 0;
-    static uint32_t frames = 0;
-    int64_t now = esp_timer_get_time();
-    frames++;
-    if (now - last_time >= 1000000) {
-        float fps = (float)frames * 1000000.0f / (float)(now - last_time);
-        Serial.printf("[SCAN] FPS: %.2f | Frame: %.1f us | ChipTemp: %.1f C\n", fps, (float)(now - last_time) / (float)frames, temperatureRead());
-        frames = 0;
-        last_time = now;
-    }
 }
