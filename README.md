@@ -8,6 +8,12 @@
 [![FPS](https://img.shields.io/badge/Refresh-99.4%20FPS%20Rock--Solid-brightgreen.svg)]()
 [![AI-Developed](https://img.shields.io/badge/Code%20by-100%25%20Autonomous%20AI-purple.svg)]()
 
+<p align="center">
+  <img src="docs/panel_preview.jpg" width="800" alt="Qiangli Q2.5 Pro running on ESP32-S3" />
+  <br>
+  <em>Live capture of the Qiangli Q2.5 Pro (128x64) running rock-solid on ESP32-S3 Super Mini</em>
+</p>
+
 > **English & Русский**  
 > High-performance, artifact-free hardware driver firmware for the **Qiangli Q2.5 Pro (`Q2.5 S20B32 V1.1`)** 128×64 1/32 scan LED panel driven by **Depuwei DP3356 / DP3265S** column drivers and **DP32020A** P-MOSFET row drivers on **ESP32-S3 Super Mini**.
 
