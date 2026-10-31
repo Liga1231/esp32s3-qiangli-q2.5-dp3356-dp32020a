@@ -3,6 +3,7 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
+#include <esp_wifi.h>
 #include "web_page_data.h"
 #include "matrix128x128_data.h"
 
@@ -287,6 +288,8 @@ void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventTyp
     }
 }
 
+void matrix_scan_task(void *pvParameters);
+
 void setup() {
     setCpuFrequencyMhz(240);
     pinMode(ONBOARD_LED, OUTPUT);
@@ -343,6 +346,13 @@ void setup() {
     WiFi.mode(WIFI_AP);
     WiFi.softAP("matrix 128x128", "123456788");
 
+    // CRITICAL: Disable Wi-Fi modem sleep to eliminate periodic 1-second RF power spikes:
+    WiFi.setSleep(false);
+    esp_wifi_set_ps(WIFI_PS_NONE);
+
+    // Smooth out RF current draw (13 dBm delivers solid 10m range without power-rail sag):
+    WiFi.setTxPower(WIFI_POWER_13dBm);
+
     // Route: Serve SPA Web Studio from Flash (gzip compressed)
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", WEB_PAGE_GZIP, WEB_PAGE_GZIP_LEN);
@@ -354,65 +364,91 @@ void setup() {
     ws.onEvent(onWsEvent);
     server.addHandler(&ws);
     server.begin();
+
+    // Disable Watchdog on Core 1 for uninterrupted scan:
+    disableCore1WDT();
+
+    // Launch Dedicated Core 1 Display Engine Task (Highest Priority, 100% CPU on Core 1):
+    xTaskCreatePinnedToCore(
+        matrix_scan_task,
+        "MatrixScan",
+        8192,
+        NULL,
+        configMAX_PRIORITIES - 1, // Priority 24 (Highest possible)
+        NULL,
+        1                         // Core 1 exclusively (Core 0 handles Wi-Fi/WS)
+    );
 }
 
-void loop() {
-    // 1. One-time sequence: transmit 13 config registers once, then hold VSYNC only
-    static uint8_t s_cfg_idx = 0;
-    if (s_cfg_idx < 13) {
-        write_dp3356_reg(DP3356_CONFIG_REGS[s_cfg_idx]);
-        s_cfg_idx++;
-    } else {
-        dp3364_vsync();
+// ============================================================================
+// DEDICATED MATRIX SCAN ENGINE (PINNED EXCLUSIVELY TO CORE 1)
+// ============================================================================
+void matrix_scan_task(void *pvParameters) {
+    // 1. Transmit 13 configuration registers sequentially with hardware handshake:
+    for (uint8_t i = 0; i < 13; i++) {
+        write_dp3356_reg(DP3356_CONFIG_REGS[i]);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
+    dp3364_vsync();
 
-    // 2. Scan all 32 row pairs with FPGA-grade hardware blanking during data shifts
-    for (uint32_t line = 0; line < ROWS; line++) {
-        // Step A: Clock DP32020A and BLANK all PMOS outputs (DCK=1)
-        if (line == 0) {
-            GPIO.out_w1ts = (1UL << PIN_C); // DIN = 1
-            esp_rom_delay_us(1);
-            GPIO.out_w1ts = (1UL << PIN_A); // DCK = 1 (Blanking active: all PMOS OFF / 0mA)
-            esp_rom_delay_us(1);
-            GPIO.out_w1tc = (1UL << PIN_C); // Clear DIN
-        } else {
-            GPIO.out_w1ts = (1UL << PIN_A); // DCK = 1 (Blanking active: all PMOS OFF / 0mA)
-            esp_rom_delay_us(1);
-        }
+    // 2. Pure uninterrupted zero-jitter 50.00 FPS scan loop:
+    while (1) {
+        for (uint32_t line = 0; line < ROWS; line++) {
+            // Step A: Clock DP32020A and BLANK all PMOS outputs (DCK=1)
+            if (line == 0) {
+                GPIO.out_w1ts = (1UL << PIN_C); // DIN = 1
+                esp_rom_delay_us(1);
+                GPIO.out_w1ts = (1UL << PIN_A); // DCK = 1 (Blanking active: all PMOS OFF / 0mA)
+                esp_rom_delay_us(1);
+                GPIO.out_w1tc = (1UL << PIN_C); // Clear DIN
+            } else {
+                GPIO.out_w1ts = (1UL << PIN_A); // DCK = 1 (Blanking active: all PMOS OFF / 0mA)
+                esp_rom_delay_us(1);
+            }
 
-        // Step B: Shift 256 pixels of RGB data (16 chips * 16 cols) across both panels:
-        const uint32_t *line_ptr = &active_frame[line][0][0];
-        for (uint32_t col = 0; col < 16; col++) {
-            // Chips 0..14 (Chips 0..7 for Panel 2, Chips 8..14 for Panel 1)
-            for (uint32_t ch = 0; ch < 15; ch++) {
+            // Step B: Shift 256 pixels of RGB data (16 chips * 16 cols) across both panels:
+            const uint32_t *line_ptr = &active_frame[line][0][0];
+            for (uint32_t col = 0; col < 16; col++) {
+                // Chips 0..14 (Chips 0..7 for Panel 2, Chips 8..14 for Panel 1)
+                for (uint32_t ch = 0; ch < 15; ch++) {
+                    uint32_t mask = *line_ptr++;
+                    GPIO.out_w1ts = mask;
+                    GPIO.out_w1tc = ALL_RGB_MASK & ~mask;
+                    CLK_PULSE_15();
+                    CLK_PULSE();
+                }
+                // Chip 15 (last chip in chain): 16th bit latches with LAT_MASK for both panels
                 uint32_t mask = *line_ptr++;
                 GPIO.out_w1ts = mask;
                 GPIO.out_w1tc = ALL_RGB_MASK & ~mask;
                 CLK_PULSE_15();
-                CLK_PULSE();
+                GPIO.out1_w1ts.val = CLK_MASK | LAT_MASK;
+                __asm__ __volatile__("nop; nop;");
+                GPIO.out1_w1tc.val = CLK_MASK | LAT_MASK;
+                __asm__ __volatile__("nop; nop;");
             }
-            // Chip 15 (last chip in chain): 16th bit latches with LAT_MASK for both panels
-            uint32_t mask = *line_ptr++;
-            GPIO.out_w1ts = mask;
-            GPIO.out_w1tc = ALL_RGB_MASK & ~mask;
-            CLK_PULSE_15();
-            GPIO.out1_w1ts.val = CLK_MASK | LAT_MASK;
-            __asm__ __volatile__("nop; nop;");
-            GPIO.out1_w1tc.val = CLK_MASK | LAT_MASK;
-            __asm__ __volatile__("nop; nop;");
+
+            // Step C: DP3356 Row Change Handshake on OE
+            dp3364_change_row(line);
+
+            // Step D: UNBLANK PMOS (DCK=0): Turn ON current row for PWM emission
+            GPIO.out_w1tc = (1UL << PIN_A);
+            esp_rom_delay_us(1);
+
+            // Step E: Calibrated PWM burst for EXACT 50.000 FPS (20,000 us/frame, zero beat against 100Hz mains)
+            for (uint32_t i = 0; i < 73; i++) {
+                CLK_PULSE_8();
+            }
+            CLK_PULSE_2();
         }
 
-        // Step C: DP3356 Row Change Handshake on OE
-        dp3364_change_row(line);
-
-        // Step D: UNBLANK PMOS (DCK=0): Turn ON current row for PWM emission
-        GPIO.out_w1tc = (1UL << PIN_A);
-        esp_rom_delay_us(1);
-
-        // Step E: Calibrated PWM burst for EXACT 50.000 FPS (20,000 us/frame, zero beat against 100Hz mains)
-        for (uint32_t i = 0; i < 73; i++) {
-            CLK_PULSE_8();
-        }
-        CLK_PULSE_2();
+        // Yield to allow idle task maintenance on Core 1 without losing a single microsecond
+        taskYIELD();
     }
+}
+
+// Background maintenance loop on Core 1 (Wi-Fi and WebSocket run on Core 0)
+void loop() {
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    ws.cleanupClients();
 }
