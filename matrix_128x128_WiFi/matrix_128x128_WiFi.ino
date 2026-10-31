@@ -409,8 +409,8 @@ void loop() {
         GPIO.out_w1tc = (1UL << PIN_A);
         esp_rom_delay_us(1);
 
-        // Step E: Calibrated PWM burst for EXACT 50.000 FPS (20,000 us/frame, zero beat against 100Hz mains)
-        for (uint32_t i = 0; i < 73; i++) {
+        // Step E: Calibrated PWM burst for EXACT 60.000 FPS (16,666 us/frame, calibrated 60 Hz)
+        for (uint32_t i = 0; i < 60; i++) {
             CLK_PULSE_8();
         }
         CLK_PULSE_2();
