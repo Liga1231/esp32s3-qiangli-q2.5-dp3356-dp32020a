@@ -78,27 +78,21 @@ void dp3364_vsync(void) {
     set_gpio_for_clk_pulses(PIN_LE, 3);
 }
 
-// 19 DP3356 Configuration Registers (Official Manufacturer Depuwei .DOC specification + MAX 0x08FF Current)
-const uint16_t DP3356_CONFIG_REGS[19] = {
+// 13 DP3356 Configuration Registers (PLL Enabled 0x0642 + Boost 0x1180 + MAX Current 0x08FF)
+const uint16_t DP3356_CONFIG_REGS[13] = {
     0x021F, // 32 scan lines (31 + 1)
     0x033F, // group num = 63
-    0x04FF, // MAXIMUM active PWM time (255 -> 1024 clocks per group)
-    0x0508, // Manufacturer doc: 0x08 (interline blanking / precharge)
-    0x063A, // Manufacturer doc: 0x3A (High-speed 11x PLL frequency multiplier)
-    0x0700, // PWM balancing
+    0x047F, // max active PWM time
+    0x0504,
+    0x0642, // Bits [7:6] = 01 (INTERNAL PLL ENABLED!)
+    0x0700,
     0x08FF, // MAXIMUM 200% CURRENT GAIN (255 / 255)
-    0x0967, // Manufacturer doc: 0x67 (output stage stabilization)
-    0x0ABE, // Low-gray coupling elimination
-    0x0B27, // Manufacturer doc: 0x27 (Optimized Knee Voltage for maximum LED drive current)
+    0x0960,
+    0x0ABE,
+    0x0B8B, // Stable Knee Voltage & Anti-Coupling
     0x0CD8, // High-Current Range Multiplier (0x18 | 0b11000000)
-    0x0D08, // Manufacturer doc: 0x08 (EMI edge optimization)
-    0x0E27, // Manufacturer doc: 0x27 (Enhanced current channel enable)
-    0x0F20, // Manufacturer doc: 0x20 (PWM boost multiplier)
-    0x1000,
-    0x1180, // Internal boost / high-efficiency PWM enable (bit 7 = 1)
-    0x1200,
-    0x1300,
-    0x1400
+    0x0D12,
+    0x1180  // Internal boost / high-efficiency PWM enable (bit 7 = 1)
 };
 
 // Proper DP3356 Register Write with full hardware handshake per register:
@@ -208,10 +202,10 @@ static uint32_t profile_frames = 0;
 void loop() {
     int64_t t_frame_start = esp_timer_get_time();
 
-    // 1. One-time sequence: transmit 19 config registers once, then hold VSYNC only
+    // 1. One-time sequence: transmit 13 config registers once, then hold VSYNC only
     int64_t t_sync_start = esp_timer_get_time();
     static uint8_t s_cfg_idx = 0;
-    if (s_cfg_idx < 19) {
+    if (s_cfg_idx < 13) {
         write_dp3356_reg(DP3356_CONFIG_REGS[s_cfg_idx]);
         s_cfg_idx++;
     } else {
@@ -271,9 +265,9 @@ void loop() {
         GPIO.out_w1tc = (1UL << PIN_A);
         esp_rom_delay_us(1);
 
-        // Step E: 100.0 FPS GOLD Ultra-Smooth (Zero Peripheral Flicker, Zero Running Bar, 100.0Hz Synchronized):
+        // Step E: Required PWM timing burst (256 GCLK cycles per line, 99.4 FPS):
         int64_t t_pwm_start = esp_timer_get_time();
-        for (uint32_t i = 0; i < 30; i++) {
+        for (uint32_t i = 0; i < 32; i++) {
             CLK_PULSE_8();
         }
         int64_t t_pwm_end = esp_timer_get_time();
