@@ -5,6 +5,7 @@
 [![Driver](https://img.shields.io/badge/Driver-DP3356%20%7C%20DP3265S-orange.svg)](https://www.depuw.com/)
 [![Row Switch](https://img.shields.io/badge/Row%20Switch-DP32020A%20PMOS-red.svg)](https://www.depuw.com/)
 [![FPS](https://img.shields.io/badge/Refresh-99.4%20FPS%20Rock--Solid-brightgreen.svg)]()
+[![AI-Developed](https://img.shields.io/badge/Code%20by-100%25%20Autonomous%20AI-blueviolet.svg)]()
 
 <p align="center">
   <img src="docs/panel_preview.jpg" width="800" alt="Qiangli Q2.5 Pro running on ESP32-S3" />
@@ -14,6 +15,24 @@
 
 > **English & Русский**  
 > An ultra-stable, flicker-free, artifact-free driver firmware for **Qiangli Q2.5 Pro (Q2.5 S20B32 V1.1)** 128×64 1/32 scan LED panels powered by **Depuwei DP3356 / DP3265S** column drivers and **DP32020A** P-MOSFET row drivers on **ESP32-S3**.
+
+---
+
+### 🤖 100% Autonomous AI Development (Zero Human Code Touched)
+> [!IMPORTANT]
+> **Every single line of source code, hardware timing calculation, register handshake sequence, and documentation in this repository was researched, written, and debugged 100% autonomously by AI (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
+> 
+> **No human touched or manually edited any code or register bits.** The human user strictly functioned as the physical-world observer: providing eye/camera feedback, photos, and multimeter voltage checks.
+
+---
+
+### 🤖 100% Автономная разработка искусственным интеллектом (Без ручного вмешательства)
+> [!IMPORTANT]
+> **Каждая строчка исходного кода, реверс-инжиниринг протокола Depuwei, математический расчёт таймингов и документация в данном репозитории были исследованы, написаны и отлажены на 100% полностью автономно искусственным интеллектом (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
+> 
+> **Человек не прикасался к коду и не правил вручную ни одной строчки.** Роль человека-оператора сводилась исключительно к физическому наблюдению: оценка изображения глазами, съёмка на камеру и контроль напряжения мультиметром.
+
+---
 
 ---
 
