@@ -23,7 +23,7 @@
 > [!IMPORTANT]
 > **Every single line of source code, hardware timing calculation, register handshake sequence, and documentation in this repository was researched, written, and debugged 100% autonomously by AI (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
 > 
-> **No human touched or manually edited any code or register bits.** The human user strictly functioned as the physical-world observer: providing eye/camera feedback, photos, luxmeter readings, and multimeter voltage checks.
+> **No human touched or manually edited any code or register bits.** The human user strictly functioned as the physical-world observer
 
 ---
 
@@ -31,7 +31,7 @@
 > [!IMPORTANT]
 > **Каждая строчка исходного кода, реверс-инжиниринг протокола Depuwei, математический расчёт таймингов и документация в данном репозитории были исследованы, написаны и отлажены на 100% полностью автономно искусственным интеллектом (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
 > 
-> **Человек не прикасался к коду и не правил вручную ни одной строчки.** Роль человека-оператора сводилась исключительно к физическому наблюдению: оценка изображения глазами, съёмка на камеру, замеры люксметром и контроль напряжения мультиметром.
+> **Человек не прикасался к коду и не правил вручную ни одной строчки.** Роль человека-оператора сводилась исключительно к физическому наблюдению
 
 ---
 
