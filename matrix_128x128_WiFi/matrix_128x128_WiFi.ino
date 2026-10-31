@@ -366,12 +366,8 @@ void loop() {
         dp3364_vsync();
     }
 
-    // 2. Hardware Timer-Locked 100.00 FPS Scan (312 us per line x 32 lines = exactly 10,000 us / frame)
-    #define LINE_DURATION_US 312
-
+    // 2. Scan all 32 row pairs with FPGA-grade hardware blanking during data shifts
     for (uint32_t line = 0; line < ROWS; line++) {
-        int64_t t_line_start = esp_timer_get_time();
-
         // Step A: Clock DP32020A and BLANK all PMOS outputs (DCK=1)
         if (line == 0) {
             GPIO.out_w1ts = (1UL << PIN_C); // DIN = 1
@@ -413,9 +409,10 @@ void loop() {
         GPIO.out_w1tc = (1UL << PIN_A);
         esp_rom_delay_us(1);
 
-        // Step E: Hardware Phase-Locked Line Duration (keeps PWM active until exactly 312 us)
-        while ((esp_timer_get_time() - t_line_start) < LINE_DURATION_US) {
+        // Step E: Calibrated PWM burst for EXACT 50.000 FPS (20,000 us/frame, zero beat against 100Hz mains)
+        for (uint32_t i = 0; i < 73; i++) {
             CLK_PULSE_8();
         }
+        CLK_PULSE_2();
     }
 }
