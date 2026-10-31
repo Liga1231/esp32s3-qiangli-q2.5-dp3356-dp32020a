@@ -35,6 +35,39 @@
 
 ---
 
+## ⚠️ ФУНДАМЕНТАЛЬНЫЕ ОГРАНИЧЕНИЯ И ЧЕСТНЫЙ СТАТУС ПРОЕКТА / FUNDAMENTAL HARDWARE LIMITATIONS
+
+> [!WARNING]
+> # 🇷🇺 ВНИМАНИЕ: ОГРАНИЧЕНИЯ ЯРКОСТИ И ДЕТАЛИЗАЦИИ
+> 
+> 1. **Индивидуальная регулировка яркости отдельных пикселей НЕ реализована:**
+>    - В чипах **DP3356** физически отсутствует индивидуальный цифро-аналоговый преобразователь (ЦАП / DAC) для каждого диода. Микросхемы являются **1-битными цифровыми сдвиговыми ключами**: светодиод может быть либо включён на полную мощность, либо полностью выключен.
+>    - Сила тока настраивается аппаратно **только одна сразу на все выходы микросхемы**.
+>    - Полутона и градации яркости формируются исключительно пространственным дизерингом (сеткой пикселей). По этой причине **сложные фотографии, портреты и плавные градиенты теряют очень много мелких деталей** по сравнению с экранами смартфонов или дисплеями с полноценным 16-битным ШИМ.
+> 
+> 2. **Невозможность программного ШИМ (FRC) без стробоскопического мерцания:**
+>    - Попытка модулировать яркость во времени (включать/выключать пиксель на разные кадры) на светодиодах с крупным физическим шагом **2.5 мм** приводит к стробоскопическому эффекту саккад глаза: при любом движении взгляда полутона распадаются на **«бегущие дорожки из светящихся точек»** и вызывают усталость глаз.
+> 
+> 3. **Не удалось достичь пиковой (уличной) яркости:**
+>    - Матрица работает в режиме мультиплексирования **1/32 scan**: светодиоды каждой строки горят лишь $1/32$ времени кадра (скважность всего **3.12%**).
+>    - Ради идеальной стабильности без бегущих тёмных полос на камерах и полос биений с электросетью (пульсации выпрямителя 100 Гц) кадровая частота зафиксирована на **50.00 FPS**. Дисплей обеспечивает комфортную интерьерную яркость (~160–200 нит), но **не способен выдать предельную яркость уличных видеоэкранов (1000–5000 нит)**.
+
+> [!WARNING]
+> # 🇬🇧 NOTICE: PIXEL BRIGHTNESS & PHOTOGRAPHIC DETAIL LIMITATIONS
+> 
+> 1. **Per-Pixel Brightness / Current Control is NOT Implemented:**
+>    - The **DP3356** column drivers have no per-pixel DACs. They operate purely as **1-bit digital shift registers**: any sub-pixel is either 100% ON or 100% OFF. Output current gain can only be configured globally across the entire chip.
+>    - Intermediate shades are produced solely through spatial dithering. As a result, **photographs, portraits, and subtle gradients lose significant fine detail and sharpness** compared to high-density mobile screens.
+> 
+> 2. **Physical Failure of Temporal PWM / FRC on 2.5mm LED Pitch:**
+>    - Rapidly toggling LEDs across consecutive sub-frames on large 2.5 mm discrete diodes creates visible eye-saccade strobing: eye movements resolve the flickering into distracting trails of flying dots.
+> 
+> 3. **Maximum Brightness Ceiling:**
+>    - Due to **1/32 multiplexing scan**, each row is energized for only **3.12% of each frame duration**.
+>    - Calibrated to exactly **50.00 FPS** to eliminate 100 Hz power supply ripple beat stripes, the matrix achieves solid indoor illumination (~160–200 nits) but **cannot match the extreme outdoor punch (1000+ nits)** of dedicated FPGA-driven commercial signage.
+
+---
+
 ## Navigation / Навигация
 * [🚀 Release v2.1.0: Dual-Panel 128×128 Matrix Studio (Wi-Fi + LittleFS)](#-release-v210-dual-panel-128128-matrix-studio-wi-fi--littlefs)
   * [1. How the Code Works](#1-how-the-code-works)
