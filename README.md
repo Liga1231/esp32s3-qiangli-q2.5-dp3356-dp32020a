@@ -1,11 +1,12 @@
 # ESP32-S3 Qiangli Q2.5 Pro LED Matrix Driver (DP3356 / DP3265S + DP32020A)
 
+[![Release](https://img.shields.io/badge/Release-v1.0.0%20Stable-blueviolet.svg)]()
 [![ESP32-S3](https://img.shields.io/badge/SoC-ESP32--S3%20Super%20Mini-blue.svg)](https://www.espressif.com/)
 [![Panel](https://img.shields.io/badge/Panel-Qiangli%20Q2.5%20Pro%20(128x64)-green.svg)](https://www.qiangli.com/)
 [![Driver](https://img.shields.io/badge/Driver-DP3356%20%7C%20DP3265S-orange.svg)](https://www.depuw.com/)
 [![Row Switch](https://img.shields.io/badge/Row%20Switch-DP32020A%20PMOS-red.svg)](https://www.depuw.com/)
 [![FPS](https://img.shields.io/badge/Refresh-99.4%20FPS%20Rock--Solid-brightgreen.svg)]()
-[![AI-Developed](https://img.shields.io/badge/Code%20by-100%25%20Autonomous%20AI-blueviolet.svg)]()
+[![AI-Developed](https://img.shields.io/badge/Code%20by-100%25%20Autonomous%20AI-purple.svg)]()
 
 > **English & Русский**  
 > High-performance, artifact-free hardware driver firmware for the **Qiangli Q2.5 Pro (`Q2.5 S20B32 V1.1`)** 128×64 1/32 scan LED panel driven by **Depuwei DP3356 / DP3265S** column drivers and **DP32020A** P-MOSFET row drivers on **ESP32-S3 Super Mini**.
@@ -16,7 +17,7 @@
 > [!IMPORTANT]
 > **Every single line of source code, hardware timing calculation, register handshake sequence, and documentation in this repository was researched, written, and debugged 100% autonomously by AI (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
 > 
-> **No human touched or manually edited any code or register bits.** The human user strictly functioned as the physical-world observer: providing eye/camera feedback, photos, and multimeter voltage checks.
+> **No human touched or manually edited any code or register bits.** The human user strictly functioned as the physical-world observer: providing eye/camera feedback, photos, luxmeter readings, and multimeter voltage checks.
 
 ---
 
@@ -24,7 +25,7 @@
 > [!IMPORTANT]
 > **Каждая строчка исходного кода, реверс-инжиниринг протокола Depuwei, математический расчёт таймингов и документация в данном репозитории были исследованы, написаны и отлажены на 100% полностью автономно искусственным интеллектом (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
 > 
-> **Человек не прикасался к коду и не правил вручную ни одной строчки.** Роль человека-оператора сводилась исключительно к физическому наблюдению: оценка изображения глазами, съёмка на камеру и контроль напряжения мультиметром.
+> **Человек не прикасался к коду и не правил вручную ни одной строчки.** Роль человека-оператора сводилась исключительно к физическому наблюдению: оценка изображения глазами, съёмка на камеру, замеры люксметром и контроль напряжения мультиметром.
 
 ---
 
@@ -35,7 +36,7 @@
   * [Major Engineering Discoveries & Physics](#3-major-engineering-discoveries--physics)
   * [Build & Flash Settings](#4-build--flash-settings)
 * [Русская версия](#-русская-версия)
-  * [Аппаратные характеристики сборки («ИДЕАЛ»)](#1-аппаратные-характеристики-сборки-идеал)
+  * [Аппаратные характеристики сборки (v1.0.0 Stable)](#1-аппаратные-характеристики-сборки-v100-stable)
   * [Распиновка подключения (HUB75 ➔ ESP32-S3)](#2-распиновка-подключения-hub75--esp32-s3)
   * [Принцип работы и физика решений](#3-принцип-работы-и-физика-решений)
   * [Настройки компиляции и прошивки](#4-настройки-компиляции-и-прошивки)
@@ -118,7 +119,7 @@ compile_and_flash.bat
 
 # 🇷🇺 Русская версия
 
-### 1. Аппаратные характеристики сборки («ИДЕАЛ»)
+### 1. Аппаратные характеристики сборки (v1.0.0 Stable)
 
 * **Разрешение матрицы:** 128 × 64 пикселей (8 192 RGB LED = 24 576 кристаллов).
 * **Кадровая частота:** **99.4 FPS** (длительность кадра 10 065.3 мкс).
@@ -188,11 +189,10 @@ compile_and_flash.bat
 
 ## 📁 Структура репозитория
 
-* [`esp_wibe.ino`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/esp_wibe.ino) — Финальная релизная прошивка («ИДЕАЛ») без отладки и с максимальной скоростью.
+* [`esp_wibe.ino`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/esp_wibe.ino) — Финальная релизная прошивка v1.0.0 Stable без отладки и с максимальной скоростью.
 * [`splash_data.h`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/splash_data.h) — Битовые маски калиброванного графического сплеш-скрина (смайлик, сердечки, рамки).
 * [`compile_and_flash.bat`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/compile_and_flash.bat) — Скрипт автоматической компиляции и прошивки через Arduino CLI.
 * [`ESP32_S3_SUPERMINI_CHEAT_SHEET.md`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/ESP32_S3_SUPERMINI_CHEAT_SHEET.md) — Аппаратная шпаргалка по граблям платы ESP32-S3 Super Mini.
-* [`TEST_ARCHIVE/`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/TEST_ARCHIVE/) — Полный архив всех 50 этапов исследований с исходниками и эталонами `IDEAL` / `GOLD`.
 
 ---
 
