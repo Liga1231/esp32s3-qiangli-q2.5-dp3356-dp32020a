@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ESP32-S3 RGB Matrix Studio</title>
+    <style>
+        :root {
+            --bg-primary: #0f111a;
+            --bg-secondary: #1a1c29;
+            --bg-card: #222538;
+            --accent: #00f0ff;
+            --accent-glow: rgba(0, 240, 255, 0.35);
+            --neon-pink: #ff007f;
+            --text-main: #f0f4fc;
+            --text-dim: #8a93aa;
+            --border: #2e334d;
+            --active-border: #00f0ff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 12px;
+        }
+
+        header {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 18px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            margin-bottom: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 1.15rem;
+            letter-spacing: 0.5px;
+        }
+
+        .brand-badge {
+            background: linear-gradient(135deg, var(--neon-pink), var(--accent));
+            color: #fff;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 800;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            padding: 4px 10px;
+            border-radius: 20px;
+            background: rgba(0, 240, 255, 0.1);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+        }
+
+        /* Mode Selector Tabs (Radio Buttons) */
+        .mode-selector {
+            width: 100%;
+            max-width: 900px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: var(--bg-secondary);
+            padding: 6px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            margin-bottom: 14px;
+        }
+
+        .mode-radio-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.2s ease;
+            color: var(--text-dim);
+            user-select: none;
+        }
+
+        .mode-radio-label input[type="radio"] {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-dim);
+            border-radius: 50%;
+            outline: none;
+            transition: 0.2s;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .mode-radio-label input[type="radio"]:checked {
+            border-color: var(--accent);
+        }
+
+        .mode-radio-label input[type="radio"]:checked::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 6px var(--accent);
+        }
+
+        .mode-radio-label:has(input[type="radio"]:checked) {
+            background: var(--bg-card);
+            color: var(--accent);
+            border: 1px solid var(--border);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        }
+
+        /* Container & Panels */
+        .main-container {
+            width: 100%;
+            max-width: 900px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .mode-panel {
+            display: none;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            animation: fadeIn 0.25s ease-in-out;
+        }
+
+        .mode-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* DRAWING MODE */
+        .draw-workspace {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .canvas-card {
+            background: #000;
+            padding: 8px;
+            border-radius: 12px;
+            border: 2px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 240, 255, 0.15);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            touch-action: none;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #drawCanvas {
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            background: #050608;
+            cursor: crosshair;
+            display: block;
+            border-radius: 4px;
+        }
+
+        .toolbar {
+            width: 100%;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--bg-card);
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .tool-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: var(--bg-secondary);
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        .btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .btn.active {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .btn-danger:hover {
+            border-color: #ff3366;
+            color: #ff3366;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00b4db, #0083b0);
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 15px rgba(0, 180, 219, 0.4);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(0, 180, 219, 0.6);
+            transform: translateY(-1px);
+            color: #fff;
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: none;
+            color: #fff;
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            user-select: none;
+        }
+
+        .btn-save:hover {
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.55);
+            transform: translateY(-1px);
+            color: #fff;
+        }
+
+        /* Palette */
+        .palette-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .color-swatch {
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
+            border: 2px solid #333;
+            cursor: pointer;
+            transition: transform 0.15s, border-color 0.15s;
+        }
+
+        .color-swatch:hover, .color-swatch.active {
+            transform: scale(1.15);
+            border-color: #fff;
+            box-shadow: 0 0 8px rgba(255,255,255,0.6);
+        }
+
+        .custom-color-input {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        /* TEXT MODE */
+        .text-form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-group label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 600;
+        }
+
+        .text-input {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .text-input:focus {
+            border-color: var(--accent);
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        /* IMAGE MODE */
+        .image-dropzone {
+            border: 2px dashed var(--border);
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 30px 16px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .image-dropzone:hover, .image-dropzone.dragover {
+            border-color: var(--accent);
+            background: rgba(0, 240, 255, 0.05);
+        }
+
+        .image-previews-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            justify-content: center;
+            margin-top: 14px;
+        }
+
+        .preview-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .preview-box span {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .preview-canvas {
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: #000;
+            image-rendering: pixelated;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .slider-group input[type="range"] {
+            flex: 1;
+            accent-color: var(--accent);
+        }
+
+        /* Live status toast */
+        .toast {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--accent);
+            color: var(--text-main);
+            padding: 10px 16px;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            font-size: 0.85rem;
+            display: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <span>⚡ MATRIX STUDIO</span>
+            <span class="brand-badge">128×128 PRO</span>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot"></div>
+            <span id="wsStatus">Демо-режим (Превью)</span>
+        </div>
+    </header>
+
+    <!-- Mode Selector Radio Buttons -->
+    <div class="mode-selector">
+        <label class="mode-radio-label">
+            <input type="radio" name="matrixMode" value="draw" checked>
+            <span>Рисование</span>
+        </label>
+        <label class="mode-radio-label">
+            <input type="radio" name="matrixMode" value="text">
+            <span>Текст</span>
+        </label>
+        <label class="mode-radio-label">
+            <input type="radio" name="matrixMode" value="image">
+            <span>Изображение</span>
+        </label>
+    </div>
+
+    <div class="main-container">
+
+        <!-- ==================== MODE 1: DRAWING ==================== -->
+        <div class="mode-panel active" id="panel-draw">
+            <div class="draw-workspace">
+                <div class="canvas-card">
+                    <canvas id="drawCanvas" width="128" height="128"></canvas>
+                </div>
+
+                <div class="toolbar">
+                    <div class="tool-group">
+                        <button class="btn active" id="toolPen" title="Карандаш (1px)">✏️ Перо</button>
+                        <button class="btn" id="toolBrush" title="Кисть">🖌️ Кисть</button>
+                        <div id="brushSizeContainer" style="display: none; align-items: center; gap: 4px; background: var(--bg-card); padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border);">
+                            <span style="font-size: 0.75rem; color: var(--text-dim);">Кисть:</span>
+                            <select id="brushSizeSelect" class="text-input" style="padding: 2px 6px; font-size: 0.8rem; width: auto; height: 26px;">
+                                <option value="1">1 px</option>
+                                <option value="2" selected>2 px</option>
+                                <option value="3">3 px</option>
+                                <option value="4">4 px</option>
+                                <option value="6">6 px</option>
+                                <option value="8">8 px</option>
+                                <option value="12">12 px</option>
+                            </select>
+                        </div>
+                        <button class="btn" id="toolEraser" title="Ластик">🧹 Ластик</button>
+                        <div id="eraserSizeContainer" style="display: none; align-items: center; gap: 4px; background: var(--bg-card); padding: 4px 8px; border-radius: 8px; border: 1px solid var(--border);">
+                            <span style="font-size: 0.75rem; color: var(--text-dim);">Ластик:</span>
+                            <select id="eraserSizeSelect" class="text-input" style="padding: 2px 6px; font-size: 0.8rem; width: auto; height: 26px;">
+                                <option value="1">1 px</option>
+                                <option value="2">2 px</option>
+                                <option value="4" selected>4 px</option>
+                                <option value="8">8 px</option>
+                                <option value="16">16 px</option>
+                            </select>
+                        </div>
+                        <button class="btn" id="toolBucket" title="Заливка">🪣 Заливка</button>
+                        <button class="btn" id="btnUndo" title="Откатить назад (Ctrl+Z)" disabled style="opacity: 0.4;">↩️ Назад</button>
+                        <button class="btn" id="btnRedo" title="Вернуть вперед (Ctrl+Y)" disabled style="opacity: 0.4;">↪️ Вперёд</button>
+                        <button class="btn btn-danger" id="btnClear">🗑️ Очистить</button>
+                    </div>
+
+                    <div class="tool-group">
+                        <label style="font-size: 0.8rem; color: var(--text-dim); display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" id="chkRealtime" checked> Реальное время (Live WS)
+                        </label>
+                        <button class="btn btn-primary" id="btnSendDraw">Отправить на экран</button>
+                        <button class="btn btn-save" id="btnSaveDraw" title="Сохранить текущий рисунок во Flash-память ESP32: он будет загружаться при включении питания">💾 Сохранить</button>
+                    </div>
+                </div>
+
+                <!-- Palette -->
+                <div class="toolbar" style="margin-top: -6px;">
+                    <div class="palette-row">
+                        <span style="font-size: 0.8rem; color: var(--text-dim); margin-right: 4px;">Цвета:</span>
+                        <div class="color-swatch active" style="background: #ffffff;" data-color="#ffffff"></div>
+                        <div class="color-swatch" style="background: #ff0055;" data-color="#ff0055"></div>
+                        <div class="color-swatch" style="background: #ff5500;" data-color="#ff5500"></div>
+                        <div class="color-swatch" style="background: #ffcc00;" data-color="#ffcc00"></div>
+                        <div class="color-swatch" style="background: #00ff66;" data-color="#00ff66"></div>
+                        <div class="color-swatch" style="background: #00f0ff;" data-color="#00f0ff"></div>
+                        <div class="color-swatch" style="background: #0066ff;" data-color="#0066ff"></div>
+                        <div class="color-swatch" style="background: #cc00ff;" data-color="#cc00ff"></div>
+                        <input type="color" id="customColor" class="custom-color-input" value="#00f0ff" title="Выбрать свой цвет">
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim);" id="coordsDisplay">X: 0, Y: 0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== MODE 2: TEXT ==================== -->
+        <div class="mode-panel" id="panel-text">
+            <div class="text-form">
+                <div class="input-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                        <label>Текст сообщения:</label>
+                        <div style="display: flex; align-items: center; gap: 10px; font-size: 0.75rem; flex-wrap: wrap;">
+                            <span id="textCapacityBadge" style="padding: 2px 8px; border-radius: 4px; background: rgba(0, 240, 255, 0.1); border: 1px solid var(--accent); color: var(--accent); font-weight: 600;">Заполнено: 0%</span>
+                            <span style="display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="chkAutoWrap" checked style="accent-color: var(--accent); cursor: pointer;">
+                                <label for="chkAutoWrap" style="cursor: pointer; color: var(--accent);">Авто-перенос (Wrap)</label>
+                            </span>
+                            <span style="display: flex; align-items: center; gap: 4px;">
+                                <input type="checkbox" id="chkRussianHyphen" checked style="accent-color: var(--accent); cursor: pointer;">
+                                <label for="chkRussianHyphen" style="cursor: pointer; color: var(--accent);">По слогам с тире «-»</label>
+                            </span>
+                        </div>
+                    </div>
+                    <textarea id="textInput" class="text-input" rows="3" style="resize: vertical; min-height: 70px; line-height: 1.4;" placeholder="Введите текст... При заполнении экрана ввод автоматически блокируется!">Hello Pictures</textarea>
+                    <div id="textOverflowAlert" style="display: none; font-size: 0.8rem; color: #ff3366; font-weight: 700; margin-top: 4px; padding: 4px 8px; background: rgba(255, 51, 102, 0.1); border-radius: 6px; border: 1px solid #ff3366;">
+                        ⛔ Экран 128×128 полностью заполнен по вертикали! Ввод новых букв заблокирован.
+                    </div>
+                </div>
+
+                <div class="controls-grid">
+                    <div class="input-group">
+                        <label>Размер шрифта:</label>
+                        <select id="fontSize" class="text-input">
+                            <option value="10">Мини (10px)</option>
+                            <option value="12">Мелкий (12px)</option>
+                            <option value="16" selected>Стандарт (16px)</option>
+                            <option value="20">Средний (20px)</option>
+                            <option value="26">Крупный (26px)</option>
+                            <option value="34">Огромный (34px)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Выравнивание (X):</label>
+                        <select id="textAlign" class="text-input">
+                            <option value="center" selected>По центру</option>
+                            <option value="left">По левому краю</option>
+                            <option value="right">По правому краю</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Выравнивание (Y):</label>
+                        <select id="textVAlign" class="text-input">
+                            <option value="middle" selected>По центру высоты</option>
+                            <option value="top">Сверху</option>
+                            <option value="bottom">Снизу</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Интервал между строк:</label>
+                        <select id="lineSpacing" class="text-input">
+                            <option value="1.1">Плотный (1.1x)</option>
+                            <option value="1.25" selected>Стандарт (1.25x)</option>
+                            <option value="1.45">Просторный (1.45x)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Цвет текста:</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="color" id="textColor" class="custom-color-input" value="#00f0ff">
+                            <span id="textColorHex" style="font-size: 0.85rem;">#00f0ff</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Цвет фона:</label>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="color" id="bgColor" class="custom-color-input" value="#000000">
+                            <span id="bgColorHex" style="font-size: 0.85rem;">#000000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 6px; margin: 10px 0;">
+                    <span style="font-size: 0.8rem; color: var(--text-dim);">Предпросмотр экрана 128×128 (в масштабе):</span>
+                    <canvas id="textPreviewCanvas" class="preview-canvas" width="128" height="128" style="width: 256px; height: 256px;"></canvas>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                    <button class="btn btn-primary" id="btnSendText" style="flex: 1; min-width: 180px;">🚀 Отправить на дисплей</button>
+                    <button class="btn btn-save" id="btnSaveText" style="flex: 1; min-width: 180px;" title="Сохранить текущий текст во Flash-память ESP32: он будет отображаться при включении">💾 Сохранить при включении</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== MODE 3: IMAGE ==================== -->
+        <div class="mode-panel" id="panel-image">
+            <div class="text-form">
+                <input type="file" id="imageFileInput" accept="image/*" style="display: none;">
+                
+                <div class="image-dropzone" id="dropZone">
+                    <div style="font-size: 2.2rem;">📁</div>
+                    <div style="font-weight: 600;">Нажмите для выбора или перетащите изображение</div>
+                    <div style="font-size: 0.8rem; color: var(--text-dim);">Поддерживаются PNG, JPG, GIF, WebP. Конвертация выполняется прямо в вашем браузере!</div>
+                </div>
+
+                <div class="controls-grid" id="imageControls" style="margin-top: 10px; display: none;">
+                    <div class="input-group">
+                        <label>Кадрирование:</label>
+                        <select id="imgFitMode" class="text-input">
+                            <option value="contain" selected>Вписать (Contain)</option>
+                            <option value="cover">Заполнить (Cover)</option>
+                            <option value="stretch">Растянуть (Stretch)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Сглаживание полутонов (Дизеринг):</label>
+                        <select id="imgDitherMode" class="text-input">
+                            <option value="floyd" selected>Флойд-Стейнберг (Фото / Реализм)</option>
+                            <option value="bayer">Bayer 4×4 (Ретро-пиксель)</option>
+                            <option value="none">Без дизеринга (Резкий порог)</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Насыщенность (Цвет кожи / Пастель):</label>
+                        <div class="slider-group">
+                            <input type="range" id="imgSaturation" min="-50" max="100" value="35">
+                            <span id="saturationVal" style="font-size: 0.85rem; width: 40px;">+35%</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Сила дизеринга:</label>
+                        <div class="slider-group">
+                            <input type="range" id="imgDitherStrength" min="0" max="100" value="85">
+                            <span id="ditherStrengthVal" style="font-size: 0.85rem; width: 40px;">85%</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Яркость:</label>
+                        <div class="slider-group">
+                            <input type="range" id="imgBrightness" min="-50" max="50" value="0">
+                            <span id="brightnessVal" style="font-size: 0.85rem; width: 35px;">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label>Контраст:</label>
+                        <div class="slider-group">
+                            <input type="range" id="imgContrast" min="-50" max="50" value="10">
+                            <span id="contrastVal" style="font-size: 0.85rem; width: 35px;">+10%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="image-previews-container" id="imagePreviews" style="display: none;">
+                    <div class="preview-box">
+                        <span>Исходник</span>
+                        <img id="sourceImgPreview" style="max-width: 160px; max-height: 160px; border-radius: 8px; border: 1px solid var(--border);" alt="Original">
+                    </div>
+                    <div class="preview-box">
+                        <span>Пиксели матрицы 128×128 (Клиентский рендер)</span>
+                        <canvas id="imagePreviewCanvas" class="preview-canvas" width="128" height="128" style="width: 256px; height: 256px;"></canvas>
+                    </div>
+                </div>
+
+                <div id="imageActionRow" style="display: none; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+                    <button class="btn btn-primary" id="btnSendImage" style="flex: 1; min-width: 180px;">🚀 Отправить на дисплей</button>
+                    <button class="btn btn-save" id="btnSaveImage" style="flex: 1; min-width: 180px;" title="Сохранить текущее изображение во Flash-память ESP32: оно будет отображаться при включении">💾 Сохранить при включении</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="toast" id="toastMsg"></div>
+
+    <script>
+        // Matrix geometry
+        const MATRIX_WIDTH = 128;
+        const MATRIX_HEIGHT = 128;
+
+        // WebSocket setup (Auto-detect host or fallback to Demo Mode)
+        let ws = null;
+        const isLocalFile = window.location.protocol === 'file:';
+        const wsUrl = isLocalFile ? null : `ws://${window.location.host}/ws`;
+
+        function initWebSocket() {
+            if (!wsUrl) {
+                console.log("[Demo] Running locally, simulated WebSocket mode active.");
+                document.getElementById('wsStatus').textContent = "Превью (Без подключения)";
+                return;
+            }
+
+            ws = new WebSocket(wsUrl);
+            ws.binaryType = "arraybuffer";
+
+            ws.onopen = () => {
+                document.getElementById('wsStatus').textContent = "● Подключено к ESP32";
+                document.getElementById('wsStatus').style.color = "#00ff66";
+                showToast("Подключено к экрану ESP32-S3!");
+            };
+
+            ws.onmessage = (event) => {
+                if (typeof event.data === 'string') {
+                    if (event.data === 'SAVED_OK') {
+                        showToast("✅ Экран сохранён в ESP32! Загрузится при включении.");
+                    } else if (event.data === 'SAVE_ERR') {
+                        showToast("❌ Ошибка сохранения во Flash.");
+                    } else if (event.data.startsWith('BOOT_MODE:')) {
+                        const bootMode = event.data.split(':')[1].trim();
+                        if (bootMode && !sessionStorage.getItem('user_switched_mode')) {
+                            selectMode(bootMode);
+                        }
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('wsStatus').textContent = "○ Отключено (Повтор...)";
+                document.getElementById('wsStatus').style.color = "#ff3366";
+                setTimeout(initWebSocket, 2000);
+            };
+
+            ws.onerror = (e) => {
+                console.error("WS error:", e);
+            };
+        }
+
+        initWebSocket();
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastMsg');
+            toast.textContent = msg;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2200);
+        }
+
+        // ==================== MODE SWITCHER ====================
+        const modeRadios = document.querySelectorAll('input[name="matrixMode"]');
+        const panels = {
+            draw: document.getElementById('panel-draw'),
+            text: document.getElementById('panel-text'),
+            image: document.getElementById('panel-image')
+        };
+
+        function selectMode(selected) {
+            const radio = document.querySelector(`input[name="matrixMode"][value="${selected}"]`);
+            if (radio) radio.checked = true;
+            Object.values(panels).forEach(p => p.classList.remove('active'));
+            if (panels[selected]) {
+                panels[selected].classList.add('active');
+                if (selected === 'text') updateTextPreview();
+            }
+        }
+
+        modeRadios.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                const selected = e.target.value;
+                localStorage.setItem('matrix_active_mode', selected);
+                sessionStorage.setItem('user_switched_mode', '1');
+                selectMode(selected);
+            });
+        });
+
+        // ==================== MODE 1: DRAWING CANVAS ====================
+        const drawCanvas = document.getElementById('drawCanvas');
+        const dCtx = drawCanvas.getContext('2d', { willReadFrequently: true });
+        
+        // Scale canvas display size (e.g. 128px displayed at 384px on screen for easy mobile touch)
+        const DISPLAY_SIZE = Math.min(window.innerWidth - 64, 460);
+        drawCanvas.style.width = DISPLAY_SIZE + 'px';
+        drawCanvas.style.height = DISPLAY_SIZE + 'px';
+
+        // Clear canvas with black
+        dCtx.fillStyle = '#000000';
+        dCtx.fillRect(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+
+        let currentColor = '#00f0ff';
+        let currentTool = 'pen'; // 'pen', 'brush', 'eraser', 'bucket'
+        let isDrawing = false;
+        let lastX = -1, lastY = -1;
+
+        // Tool buttons & Brush/Eraser size selectors
+        const toolBtns = {
+            pen: document.getElementById('toolPen'),
+            brush: document.getElementById('toolBrush'),
+            eraser: document.getElementById('toolEraser'),
+            bucket: document.getElementById('toolBucket'),
+        };
+        const brushSizeContainer = document.getElementById('brushSizeContainer');
+        const brushSizeSelect = document.getElementById('brushSizeSelect');
+        const eraserSizeContainer = document.getElementById('eraserSizeContainer');
+        const eraserSizeSelect = document.getElementById('eraserSizeSelect');
+
+        Object.keys(toolBtns).forEach(tool => {
+            toolBtns[tool].addEventListener('click', () => {
+                Object.values(toolBtns).forEach(b => b.classList.remove('active'));
+                toolBtns[tool].classList.add('active');
+                currentTool = tool;
+                eraserSizeContainer.style.display = (tool === 'eraser') ? 'flex' : 'none';
+                brushSizeContainer.style.display = (tool === 'brush') ? 'flex' : 'none';
+            });
+        });
+
+        // History Stack for Undo / Redo
+        const undoStack = [];
+        const redoStack = [];
+        const MAX_UNDO = 40;
+
+        function saveCanvasState() {
+            if (undoStack.length >= MAX_UNDO) {
+                undoStack.shift();
+            }
+            undoStack.push(dCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT));
+            redoStack.length = 0; // Clear redo history on new action
+            updateUndoRedoUI();
+        }
+
+        function undo() {
+            if (undoStack.length === 0) return;
+            redoStack.push(dCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT));
+            const prev = undoStack.pop();
+            dCtx.putImageData(prev, 0, 0);
+            updateUndoRedoUI();
+            sendFullCanvas();
+            showToast("↩️ Откат назад");
+        }
+
+        function redo() {
+            if (redoStack.length === 0) return;
+            undoStack.push(dCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT));
+            const next = redoStack.pop();
+            dCtx.putImageData(next, 0, 0);
+            updateUndoRedoUI();
+            sendFullCanvas();
+            showToast("↪️ Возврат вперед");
+        }
+
+        function updateUndoRedoUI() {
+            const btnUndo = document.getElementById('btnUndo');
+            const btnRedo = document.getElementById('btnRedo');
+            btnUndo.disabled = (undoStack.length === 0);
+            btnUndo.style.opacity = (undoStack.length === 0) ? '0.4' : '1';
+            btnRedo.disabled = (redoStack.length === 0);
+            btnRedo.style.opacity = (redoStack.length === 0) ? '0.4' : '1';
+        }
+
+        document.getElementById('btnUndo').addEventListener('click', undo);
+        document.getElementById('btnRedo').addEventListener('click', redo);
+
+        // Keyboard shortcuts Ctrl+Z / Ctrl+Y
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я')) {
+                e.preventDefault();
+                if (e.shiftKey) redo();
+                else undo();
+            } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'н')) {
+                e.preventDefault();
+                redo();
+            }
+        });
+
+        // Palette swatches
+        const swatches = document.querySelectorAll('.color-swatch');
+        const customColor = document.getElementById('customColor');
+
+        swatches.forEach(swatch => {
+            swatch.addEventListener('click', () => {
+                swatches.forEach(s => s.classList.remove('active'));
+                swatch.classList.add('active');
+                currentColor = swatch.dataset.color;
+                if (currentTool === 'eraser') {
+                    toolBtns.pen.click();
+                }
+            });
+        });
+
+        customColor.addEventListener('input', (e) => {
+            swatches.forEach(s => s.classList.remove('active'));
+            currentColor = e.target.value;
+            if (currentTool === 'eraser') {
+                toolBtns.pen.click();
+            }
+        });
+
+        document.getElementById('btnClear').addEventListener('click', () => {
+            saveCanvasState();
+            dCtx.fillStyle = '#000000';
+            dCtx.fillRect(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+            showToast("Холст очищен");
+            sendFullCanvas();
+        });
+
+        // Canvas coordinate mapping
+        function getCanvasCoords(e) {
+            const rect = drawCanvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const scaleX = MATRIX_WIDTH / rect.width;
+            const scaleY = MATRIX_HEIGHT / rect.height;
+            return {
+                x: Math.floor((clientX - rect.left) * scaleX),
+                y: Math.floor((clientY - rect.top) * scaleY)
+            };
+        }
+
+        function drawPixel(x, y, color) {
+            if (x < 0 || x >= MATRIX_WIDTH || y < 0 || y >= MATRIX_HEIGHT) return;
+            dCtx.fillStyle = color;
+            dCtx.fillRect(x, y, 1, 1);
+        }
+
+        function drawAt(x, y) {
+            if (currentTool === 'eraser') {
+                const esize = parseInt(eraserSizeSelect.value, 10);
+                if (esize === 1) {
+                    drawPixel(x, y, '#000000');
+                } else {
+                    const half = Math.floor(esize / 2);
+                    dCtx.fillStyle = '#000000';
+                    dCtx.fillRect(x - half, y - half, esize, esize);
+                }
+            } else if (currentTool === 'pen') {
+                drawPixel(x, y, currentColor);
+            } else if (currentTool === 'brush') {
+                const bsize = parseInt(brushSizeSelect.value, 10);
+                if (bsize === 1) {
+                    drawPixel(x, y, currentColor);
+                } else {
+                    const half = Math.floor(bsize / 2);
+                    dCtx.fillStyle = currentColor;
+                    dCtx.fillRect(x - half, y - half, bsize, bsize);
+                }
+            }
+
+            if (document.getElementById('chkRealtime').checked) {
+                sendLivePixel(x, y, (currentTool === 'eraser') ? '#000000' : currentColor);
+            }
+        }
+
+        // Bresenham's line algorithm for smooth continuous drawing
+        function drawLine(x0, y0, x1, y1) {
+            const dx = Math.abs(x1 - x0);
+            const dy = Math.abs(y1 - y0);
+            const sx = (x0 < x1) ? 1 : -1;
+            const sy = (y0 < y1) ? 1 : -1;
+            let err = dx - dy;
+
+            while (true) {
+                drawAt(x0, y0);
+                if (x0 === x1 && y0 === y1) break;
+                const e2 = 2 * err;
+                if (e2 > -dy) { err -= dy; x0 += sx; }
+                if (e2 < dx) { err += dx; y0 += sy; }
+            }
+        }
+
+        // Flood Fill algorithm
+        function floodFill(startX, startY, fillColor) {
+            saveCanvasState();
+            const imgData = dCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+            const data = imgData.data;
+            const targetOffset = (startY * MATRIX_WIDTH + startX) * 4;
+            const tr = data[targetOffset], tg = data[targetOffset+1], tb = data[targetOffset+2];
+
+            // Convert hex to rgb
+            const rgb = hexToRgb(fillColor);
+            if (tr === rgb.r && tg === rgb.g && tb === rgb.b) return;
+
+            const queue = [[startX, startY]];
+            while (queue.length > 0) {
+                const [cx, cy] = queue.pop();
+                if (cx < 0 || cx >= MATRIX_WIDTH || cy < 0 || cy >= MATRIX_HEIGHT) continue;
+                const offset = (cy * MATRIX_WIDTH + cx) * 4;
+                if (data[offset] === tr && data[offset+1] === tg && data[offset+2] === tb) {
+                    data[offset] = rgb.r;
+                    data[offset+1] = rgb.g;
+                    data[offset+2] = rgb.b;
+                    data[offset+3] = 255;
+                    queue.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+                }
+            }
+            dCtx.putImageData(imgData, 0, 0);
+            sendFullCanvas();
+        }
+
+        function hexToRgb(hex) {
+            let c = hex.replace('#', '');
+            if (c.length === 3) c = c.split('').map(x => x + x).join('');
+            const num = parseInt(c, 16);
+            return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+        }
+
+        // Mouse & Touch events
+        function onPointerDown(e) {
+            saveCanvasState();
+            isDrawing = true;
+            const { x, y } = getCanvasCoords(e);
+            if (currentTool === 'bucket') {
+                floodFill(x, y, currentColor);
+                isDrawing = false;
+                return;
+            }
+            drawAt(x, y);
+            lastX = x; lastY = y;
+            document.getElementById('coordsDisplay').textContent = `X: ${x}, Y: ${y}`;
+        }
+
+        function onPointerMove(e) {
+            const { x, y } = getCanvasCoords(e);
+            document.getElementById('coordsDisplay').textContent = `X: ${x}, Y: ${y}`;
+            if (!isDrawing) return;
+            drawLine(lastX, lastY, x, y);
+            lastX = x; lastY = y;
+        }
+
+        function onPointerUp() {
+            if (isDrawing) {
+                if (!document.getElementById('chkRealtime').checked || currentTool === 'brush' || currentTool === 'eraser') {
+                    sendFullCanvas();
+                }
+            }
+            isDrawing = false;
+            lastX = -1; lastY = -1;
+        }
+
+        drawCanvas.addEventListener('mousedown', onPointerDown);
+        window.addEventListener('mousemove', onPointerMove);
+        window.addEventListener('mouseup', onPointerUp);
+
+        drawCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); onPointerDown(e); }, { passive: false });
+        window.addEventListener('touchmove', (e) => { if (isDrawing) e.preventDefault(); onPointerMove(e); }, { passive: false });
+        window.addEventListener('touchend', onPointerUp);
+
+        // Realtime pixel network streamer
+        function sendLivePixel(x, y, color) {
+            const rgb = hexToRgb(color);
+            // Protocol: [TYPE=1 (PIXEL), X (1 byte), Y (1 byte), R, G, B]
+            const pkt = new Uint8Array([0x01, x & 0xFF, y & 0xFF, rgb.r, rgb.g, rgb.b]);
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(pkt.buffer);
+            } else {
+                console.log(`[WS Demo] Live Pixel (${x}, ${y}): ${color}`);
+            }
+        }
+
+        function sendFullCanvas() {
+            const imgData = dCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+            sendBitmapData(imgData.data, "Холст");
+        }
+
+        document.getElementById('btnSendDraw').addEventListener('click', sendFullCanvas);
+
+        // ==================== MODE 2: TEXT RENDERER WITH AUTO-WRAP ====================
+        const textCanvas = document.getElementById('textPreviewCanvas');
+        const tCtx = textCanvas.getContext('2d');
+
+        const textInput = document.getElementById('textInput');
+        const fontSizeSelect = document.getElementById('fontSize');
+        const textAlignSelect = document.getElementById('textAlign');
+        const textVAlignSelect = document.getElementById('textVAlign');
+        const lineSpacingSelect = document.getElementById('lineSpacing');
+        const chkAutoWrap = document.getElementById('chkAutoWrap');
+        const textColorInput = document.getElementById('textColor');
+        const bgColorInput = document.getElementById('bgColor');
+
+        const chkRussianHyphen = document.getElementById('chkRussianHyphen');
+
+        // Russian Syllable Hyphenation Engine based on Russian Typographic Rules
+        function getRussianHyphenationPoints(word) {
+            // Strip trailing punctuation for hyphenation check
+            const match = word.match(/^([а-яёА-ЯЁa-zA-Z0-9]+)(.*)$/);
+            if (!match) return [];
+            const cleanWord = match[1];
+            const lower = cleanWord.toLowerCase();
+            const len = lower.length;
+            if (len < 4) return []; // Cannot hyphenate words shorter than 4 characters
+
+            const VOWELS = new Set(['а', 'е', 'ё', 'и', 'о', 'у', 'ы', 'э', 'ю', 'я']);
+            const CONSONANTS = new Set([
+                'б', 'в', 'г', 'д', 'ж', 'з', 'й', 'к', 'л', 'м', 'н', 'п', 'р', 'с', 'т', 'ф', 'х', 'ц', 'ч', 'ш', 'щ'
+            ]);
+            const SPECIALS = new Set(['ь', 'ъ']);
+
+            let vowelCount = 0;
+            const isVowel = new Array(len);
+            for (let i = 0; i < len; i++) {
+                isVowel[i] = VOWELS.has(lower[i]);
+                if (isVowel[i]) vowelCount++;
+            }
+
+            if (vowelCount < 2) return [];
+
+            const points = [];
+
+            // Rule: Prefix >= 2 chars, Suffix >= 2 chars
+            for (let i = 2; i <= len - 2; i++) {
+                const prev = lower[i - 1];
+                const curr = lower[i];
+
+                // Rule: Cannot break before 'ь', 'ъ', 'й'
+                if (SPECIALS.has(curr) || curr === 'й') continue;
+
+                // Rule: Prefix and Suffix must each contain at least one vowel
+                let hasVowelPrefix = false;
+                for (let j = 0; j < i; j++) {
+                    if (isVowel[j]) { hasVowelPrefix = true; break; }
+                }
+                if (!hasVowelPrefix) continue;
+
+                let hasVowelSuffix = false;
+                for (let j = i; j < len; j++) {
+                    if (isVowel[j]) { hasVowelSuffix = true; break; }
+                }
+                if (!hasVowelSuffix) continue;
+
+                // Break after 'ь', 'ъ', 'й' (подъ-езд, май-ка, конь-ки)
+                if (SPECIALS.has(prev) || prev === 'й') {
+                    points.push(i);
+                    continue;
+                }
+
+                // Vowel + Consonant + Vowel (ко-ро-ва)
+                if (isVowel[i - 1] && CONSONANTS.has(curr) && i + 1 < len && isVowel[i + 1]) {
+                    points.push(i);
+                    continue;
+                }
+
+                // Consonant + Consonant between vowels (кар-та, пар-та, ок-но)
+                if (CONSONANTS.has(prev) && CONSONANTS.has(curr)) {
+                    points.push(i);
+                    continue;
+                }
+
+                // Vowel + Vowel (ра-ди-о)
+                if (isVowel[i - 1] && isVowel[curr]) {
+                    points.push(i);
+                    continue;
+                }
+            }
+
+            return points;
+        }
+
+        // Typographic Wrapping Engine with Russian Syllables & Short Hyphen '-'
+        function wrapText(ctx, text, maxWidth, enableRussianHyphen = true) {
+            const lines = [];
+            const paragraphs = text.split('\n');
+
+            for (let p = 0; p < paragraphs.length; p++) {
+                const para = paragraphs[p];
+                if (para.trim() === '') {
+                    lines.push('');
+                    continue;
+                }
+
+                const words = para.split(' ');
+                let currentLine = '';
+
+                for (let w = 0; w < words.length; w++) {
+                    let word = words[w];
+                    if (word === '') continue;
+
+                    while (word.length > 0) {
+                        const testLine = currentLine ? (currentLine + ' ' + word) : word;
+                        const testWidth = ctx.measureText(testLine).width;
+
+                        // Case 1: Whole word fits on currentLine
+                        if (testWidth <= maxWidth) {
+                            currentLine = testLine;
+                            break;
+                        }
+
+                        // Case 2: Whole word does not fit. Try Russian Syllable Hyphenation!
+                        let hyphenated = false;
+                        if (enableRussianHyphen) {
+                            const hyphenPoints = getRussianHyphenationPoints(word);
+                            // Test from longest prefix to shortest
+                            for (let h = hyphenPoints.length - 1; h >= 0; h--) {
+                                const pt = hyphenPoints[h];
+                                const prefix = word.substring(0, pt) + '-';
+                                const candidate = currentLine ? (currentLine + ' ' + prefix) : prefix;
+
+                                if (ctx.measureText(candidate).width <= maxWidth) {
+                                    lines.push(candidate);
+                                    currentLine = '';
+                                    word = word.substring(pt);
+                                    hyphenated = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (hyphenated) {
+                            continue; // Continue with remaining part of word
+                        }
+
+                        // Case 3: No syllable break fit on currentLine
+                        if (currentLine !== '') {
+                            // Flush currentLine to next row and try word on a fresh line
+                            lines.push(currentLine);
+                            currentLine = '';
+                            continue;
+                        }
+
+                        // Case 4: Even on a fresh empty line, word does not fit (very long word)
+                        // Break by syllables or characters with a hyphen
+                        let brokeLongWord = false;
+                        if (enableRussianHyphen) {
+                            const hyphenPoints = getRussianHyphenationPoints(word);
+                            for (let h = hyphenPoints.length - 1; h >= 0; h--) {
+                                const pt = hyphenPoints[h];
+                                const prefix = word.substring(0, pt) + '-';
+                                if (ctx.measureText(prefix).width <= maxWidth) {
+                                    lines.push(prefix);
+                                    word = word.substring(pt);
+                                    brokeLongWord = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!brokeLongWord) {
+                            // Character-level hard break with hyphen
+                            let charPt = word.length - 1;
+                            while (charPt > 1 && ctx.measureText(word.substring(0, charPt) + '-').width > maxWidth) {
+                                charPt--;
+                            }
+                            if (charPt > 0) {
+                                lines.push(word.substring(0, charPt) + '-');
+                                word = word.substring(charPt);
+                            } else {
+                                lines.push(word);
+                                word = '';
+                            }
+                        }
+                    }
+                }
+
+                if (currentLine) {
+                    lines.push(currentLine);
+                }
+            }
+            return lines;
+        }
+
+        // Text height & vertical capacity metrics calculator
+        function computeTextMetrics(textToTest, overrideSize = null) {
+            const size = overrideSize || parseInt(fontSizeSelect.value, 10);
+            const lineSpacingMult = parseFloat(lineSpacingSelect.value);
+            const autoWrap = chkAutoWrap.checked;
+            const enableRussian = chkRussianHyphen.checked;
+            const padding = 4;
+            const maxWidth = MATRIX_WIDTH - (padding * 2);
+
+            tCtx.font = `bold ${size}px sans-serif`;
+            let lines = autoWrap ? wrapText(tCtx, textToTest, maxWidth, enableRussian) : textToTest.split('\n');
+            if (lines.length === 0) lines = [''];
+
+            const lineHeight = Math.round(size * lineSpacingMult);
+            const totalHeight = (lines.length === 1) ? size : (size + (lines.length - 1) * lineHeight);
+            const maxAllowed = MATRIX_HEIGHT - (padding * 2); // 120 px
+
+            return {
+                lines,
+                lineHeight,
+                totalHeight,
+                maxAllowed,
+                isOverflow: totalHeight > maxAllowed
+            };
+        }
+
+        let lastValidText = textInput.value;
+
+        // Block input if adding letters causes vertical overflow!
+        textInput.addEventListener('beforeinput', (e) => {
+            // Always allow deletions (Backspace, Delete, Cut)
+            if (e.inputType && e.inputType.startsWith('delete')) {
+                return;
+            }
+
+            const incoming = e.data || '';
+            const start = textInput.selectionStart;
+            const end = textInput.selectionEnd;
+            const current = textInput.value;
+            const projected = current.substring(0, start) + incoming + current.substring(end);
+
+            const metrics = computeTextMetrics(projected);
+            if (metrics.isOverflow) {
+                e.preventDefault(); // BLOCK INPUT IMMEDIATELY!
+                flashTextOverflow();
+            }
+        });
+
+        textInput.addEventListener('input', () => {
+            const metrics = computeTextMetrics(textInput.value);
+            if (metrics.isOverflow) {
+                // If paste or drag-drop bypassed beforeinput
+                textInput.value = lastValidText;
+                flashTextOverflow();
+                return;
+            }
+            lastValidText = textInput.value;
+            updateCapacityBadge(metrics);
+            updateTextPreview();
+        });
+
+        function flashTextOverflow() {
+            const alert = document.getElementById('textOverflowAlert');
+            alert.style.display = 'block';
+            textInput.style.borderColor = '#ff3366';
+            textInput.style.boxShadow = '0 0 10px rgba(255, 51, 102, 0.4)';
+            showToast("⛔ Экран 128×128 заполнен по вертикали! Ввод заблокирован.");
+
+            setTimeout(() => {
+                textInput.style.borderColor = 'var(--border)';
+                textInput.style.boxShadow = 'none';
+            }, 1200);
+        }
+
+        function updateCapacityBadge(metrics) {
+            const badge = document.getElementById('textCapacityBadge');
+            const pct = Math.min(100, Math.round((metrics.totalHeight / metrics.maxAllowed) * 100));
+            badge.textContent = `Высота: ${metrics.totalHeight} / ${metrics.maxAllowed} px (${pct}%)`;
+
+            if (pct >= 90) {
+                badge.style.borderColor = '#ff9900';
+                badge.style.color = '#ff9900';
+                badge.style.background = 'rgba(255, 153, 0, 0.15)';
+            } else {
+                badge.style.borderColor = 'var(--accent)';
+                badge.style.color = 'var(--accent)';
+                badge.style.background = 'rgba(0, 240, 255, 0.1)';
+            }
+            document.getElementById('textOverflowAlert').style.display = 'none';
+        }
+
+        function updateTextPreview() {
+            const text = textInput.value;
+            const size = parseInt(fontSizeSelect.value, 10);
+            const align = textAlignSelect.value;
+            const vAlign = textVAlignSelect.value;
+            const textColor = textColorInput.value;
+            const bgColor = bgColorInput.value;
+            const padding = 4;
+
+            document.getElementById('textColorHex').textContent = textColor;
+            document.getElementById('bgColorHex').textContent = bgColor;
+
+            // Clear background
+            tCtx.fillStyle = bgColor;
+            tCtx.fillRect(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+
+            const metrics = computeTextMetrics(text);
+            updateCapacityBadge(metrics);
+
+            tCtx.fillStyle = textColor;
+            tCtx.font = `bold ${size}px sans-serif`;
+            tCtx.textAlign = align;
+            tCtx.textBaseline = 'middle';
+
+            const lines = metrics.lines;
+            const lineHeight = metrics.lineHeight;
+            const totalTextHeight = (lines.length - 1) * lineHeight;
+
+            let startY = MATRIX_HEIGHT / 2;
+            if (vAlign === 'middle') {
+                startY = (MATRIX_HEIGHT - totalTextHeight) / 2;
+            } else if (vAlign === 'top') {
+                startY = padding + (size / 2);
+            } else if (vAlign === 'bottom') {
+                startY = MATRIX_HEIGHT - padding - totalTextHeight - (size / 2);
+            }
+
+            let tx = MATRIX_WIDTH / 2;
+            if (align === 'left') tx = padding;
+            if (align === 'right') tx = MATRIX_WIDTH - padding;
+
+            for (let i = 0; i < lines.length; i++) {
+                const lineY = startY + (i * lineHeight);
+                tCtx.fillText(lines[i], tx, lineY);
+            }
+        }
+
+        [textInput, fontSizeSelect, textAlignSelect, textVAlignSelect, lineSpacingSelect, chkAutoWrap, chkRussianHyphen, textColorInput, bgColorInput].forEach(el => {
+            el.addEventListener('input', updateTextPreview);
+            el.addEventListener('change', updateTextPreview);
+        });
+
+        document.getElementById('btnSendText').addEventListener('click', () => {
+            const imgData = tCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+            sendBitmapData(imgData.data, "Текст");
+        });
+
+        // ==================== MODE 3: CLIENT-SIDE IMAGE CONVERTER ====================
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('imageFileInput');
+        const imgCanvas = document.getElementById('imagePreviewCanvas');
+        const iCtx = imgCanvas.getContext('2d');
+        const sourceImg = document.getElementById('sourceImgPreview');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                handleImageFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleImageFile(e.target.files[0]);
+            }
+        });
+
+        let loadedImage = null;
+
+        function handleImageFile(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Пожалуйста, выберите файл изображения!');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    loadedImage = img;
+                    sourceImg.src = event.target.result;
+                    document.getElementById('imageControls').style.display = 'grid';
+                    document.getElementById('imagePreviews').style.display = 'flex';
+                    document.getElementById('imageActionRow').style.display = 'flex';
+                    processImage();
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        const imgFitMode = document.getElementById('imgFitMode');
+        const imgDitherMode = document.getElementById('imgDitherMode');
+        const imgSaturation = document.getElementById('imgSaturation');
+        const imgDitherStrength = document.getElementById('imgDitherStrength');
+        const imgBrightness = document.getElementById('imgBrightness');
+        const imgContrast = document.getElementById('imgContrast');
+
+        // 4x4 Bayer Matrix for ordered dithering
+        const BAYER_4X4 = [
+            [ 0,  8,  2, 10],
+            [12,  4, 14,  6],
+            [ 3, 11,  1,  9],
+            [15,  7, 13,  5]
+        ];
+
+        function processImage() {
+            if (!loadedImage) return;
+
+            document.getElementById('brightnessVal').textContent = `${imgBrightness.value}%`;
+            document.getElementById('contrastVal').textContent = `${imgContrast.value}%`;
+            document.getElementById('saturationVal').textContent = `${imgSaturation.value}%`;
+            document.getElementById('ditherStrengthVal').textContent = `${imgDitherStrength.value}%`;
+
+            iCtx.fillStyle = '#000000';
+            iCtx.fillRect(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+
+            const fit = imgFitMode.value;
+            let dw = MATRIX_WIDTH, dh = MATRIX_HEIGHT;
+            let dx = 0, dy = 0;
+
+            const aspectImg = loadedImage.width / loadedImage.height;
+            const aspectCanvas = MATRIX_WIDTH / MATRIX_HEIGHT;
+
+            if (fit === 'contain') {
+                if (aspectImg > aspectCanvas) {
+                    dw = MATRIX_WIDTH;
+                    dh = MATRIX_WIDTH / aspectImg;
+                    dy = (MATRIX_HEIGHT - dh) / 2;
+                } else {
+                    dh = MATRIX_HEIGHT;
+                    dw = MATRIX_HEIGHT * aspectImg;
+                    dx = (MATRIX_WIDTH - dw) / 2;
+                }
+            } else if (fit === 'cover') {
+                if (aspectImg > aspectCanvas) {
+                    dh = MATRIX_HEIGHT;
+                    dw = MATRIX_HEIGHT * aspectImg;
+                    dx = (MATRIX_WIDTH - dw) / 2;
+                } else {
+                    dw = MATRIX_WIDTH;
+                    dh = MATRIX_WIDTH / aspectImg;
+                    dy = (MATRIX_HEIGHT - dh) / 2;
+                }
+            }
+
+            iCtx.drawImage(loadedImage, dx, dy, dw, dh);
+
+            const b = parseInt(imgBrightness.value, 10);
+            const c = parseInt(imgContrast.value, 10);
+            const satMult = 1.0 + (parseInt(imgSaturation.value, 10) / 100.0);
+            const ditherMode = imgDitherMode.value;
+            const ditherStrength = parseInt(imgDitherStrength.value, 10) / 100.0;
+            const contrastFactor = (259 * (c + 255)) / (255 * (259 - c));
+
+            const imgData = iCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+            const data = imgData.data;
+
+            // Step 1: Pre-process Color Adjustment (Brightness, Contrast, Saturation) into float buffers
+            const rBuf = new Float32Array(MATRIX_WIDTH * MATRIX_HEIGHT);
+            const gBuf = new Float32Array(MATRIX_WIDTH * MATRIX_HEIGHT);
+            const bBuf = new Float32Array(MATRIX_WIDTH * MATRIX_HEIGHT);
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i] + b;
+                let g = data[i + 1] + b;
+                let bl = data[i + 2] + b;
+
+                // Contrast
+                r = contrastFactor * (r - 128) + 128;
+                g = contrastFactor * (g - 128) + 128;
+                bl = contrastFactor * (bl - 128) + 128;
+
+                // Saturation boost (prevents skin tones and pastels from collapsing into white)
+                const gray = 0.299 * r + 0.587 * g + 0.114 * bl;
+                r = gray + satMult * (r - gray);
+                g = gray + satMult * (g - gray);
+                bl = gray + satMult * (bl - gray);
+
+                const pixelIdx = i / 4;
+                rBuf[pixelIdx] = Math.max(0, Math.min(255, r));
+                gBuf[pixelIdx] = Math.max(0, Math.min(255, g));
+                bBuf[pixelIdx] = Math.max(0, Math.min(255, bl));
+            }
+
+            // Step 2: Dithering to 8-color gamut (each channel 0 or 255)
+            if (ditherMode === 'floyd') {
+                // Floyd-Steinberg error diffusion
+                for (let y = 0; y < MATRIX_HEIGHT; y++) {
+                    for (let x = 0; x < MATRIX_WIDTH; x++) {
+                        const idx = y * MATRIX_WIDTH + x;
+                        const oldR = rBuf[idx], oldG = gBuf[idx], oldB = bBuf[idx];
+
+                        const newR = oldR > 127.5 ? 255 : 0;
+                        const newG = oldG > 127.5 ? 255 : 0;
+                        const newB = oldB > 127.5 ? 255 : 0;
+
+                        rBuf[idx] = newR;
+                        gBuf[idx] = newG;
+                        bBuf[idx] = newB;
+
+                        const errR = (oldR - newR) * ditherStrength;
+                        const errG = (oldG - newG) * ditherStrength;
+                        const errB = (oldB - newB) * ditherStrength;
+
+                        if (x + 1 < MATRIX_WIDTH) {
+                            const eIdx = y * MATRIX_WIDTH + (x + 1);
+                            rBuf[eIdx] += errR * (7.0 / 16.0);
+                            gBuf[eIdx] += errG * (7.0 / 16.0);
+                            bBuf[eIdx] += errB * (7.0 / 16.0);
+                        }
+                        if (y + 1 < MATRIX_HEIGHT) {
+                            if (x - 1 >= 0) {
+                                const eIdx = (y + 1) * MATRIX_WIDTH + (x - 1);
+                                rBuf[eIdx] += errR * (3.0 / 16.0);
+                                gBuf[eIdx] += errG * (3.0 / 16.0);
+                                bBuf[eIdx] += errB * (3.0 / 16.0);
+                            }
+                            const eIdxMid = (y + 1) * MATRIX_WIDTH + x;
+                            rBuf[eIdxMid] += errR * (5.0 / 16.0);
+                            gBuf[eIdxMid] += errG * (5.0 / 16.0);
+                            bBuf[eIdxMid] += errB * (5.0 / 16.0);
+                            if (x + 1 < MATRIX_WIDTH) {
+                                const eIdxRight = (y + 1) * MATRIX_WIDTH + (x + 1);
+                                rBuf[eIdxRight] += errR * (1.0 / 16.0);
+                                gBuf[eIdxRight] += errG * (1.0 / 16.0);
+                                bBuf[eIdxRight] += errB * (1.0 / 16.0);
+                            }
+                        }
+                    }
+                }
+            } else if (ditherMode === 'bayer') {
+                // Bayer 4x4 ordered dithering
+                for (let y = 0; y < MATRIX_HEIGHT; y++) {
+                    for (let x = 0; x < MATRIX_WIDTH; x++) {
+                        const idx = y * MATRIX_WIDTH + x;
+                        const threshold = ((BAYER_4X4[y % 4][x % 4] / 16.0) - 0.5) * 255.0 * ditherStrength;
+
+                        rBuf[idx] = (rBuf[idx] + threshold > 127.5) ? 255 : 0;
+                        gBuf[idx] = (gBuf[idx] + threshold > 127.5) ? 255 : 0;
+                        bBuf[idx] = (bBuf[idx] + threshold > 127.5) ? 255 : 0;
+                    }
+                }
+            } else {
+                // Direct threshold (no dither)
+                for (let i = 0; i < rBuf.length; i++) {
+                    rBuf[i] = rBuf[i] > 127.5 ? 255 : 0;
+                    gBuf[i] = gBuf[i] > 127.5 ? 255 : 0;
+                    bBuf[i] = bBuf[i] > 127.5 ? 255 : 0;
+                }
+            }
+
+            // Write back quantized 8-color pixels to image preview canvas
+            for (let i = 0; i < rBuf.length; i++) {
+                const p = i * 4;
+                data[p]     = rBuf[i] > 127 ? 255 : 0;
+                data[p + 1] = gBuf[i] > 127 ? 255 : 0;
+                data[p + 2] = bBuf[i] > 127 ? 255 : 0;
+                data[p + 3] = 255;
+            }
+
+            iCtx.putImageData(imgData, 0, 0);
+        }
+
+        [imgFitMode, imgDitherMode, imgSaturation, imgDitherStrength, imgBrightness, imgContrast].forEach(el => {
+            el.addEventListener('input', processImage);
+            el.addEventListener('change', processImage);
+        });
+
+        function sendImageFrame() {
+            const imgData = iCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+            sendBitmapData(imgData.data, "Изображение");
+        }
+
+        document.getElementById('btnSendImage').addEventListener('click', sendImageFrame);
+
+        // ==================== SAVE TO FLASH & PERSISTENCE ENGINE ====================
+        function requestSaveToFlash(mode) {
+            localStorage.setItem('matrix_boot_mode', mode);
+            if (mode === 'draw') {
+                localStorage.setItem('matrix_draw_data', drawCanvas.toDataURL());
+            } else if (mode === 'text') {
+                saveTextState();
+            } else if (mode === 'image') {
+                saveImageState();
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                // Command 0x03: Save active frame to LittleFS
+                const modeId = (mode === 'draw') ? 1 : (mode === 'text' ? 2 : 3);
+                const pkt = new Uint8Array([0x03, modeId]);
+                ws.send(pkt.buffer);
+                showToast("💾 Запись во Flash-память ESP32...");
+            } else {
+                showToast("💾 Сохранено локально в браузере (ESP32 не подключен)");
+            }
+        }
+
+        // Hook up Save buttons in each mode
+        document.getElementById('btnSaveDraw').addEventListener('click', () => {
+            sendFullCanvas();
+            setTimeout(() => { requestSaveToFlash('draw'); }, 80);
+        });
+
+        document.getElementById('btnSaveText').addEventListener('click', () => {
+            const imgData = tCtx.getImageData(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
+            sendBitmapData(imgData.data, "Текст");
+            setTimeout(() => { requestSaveToFlash('text'); }, 80);
+        });
+
+        document.getElementById('btnSaveImage').addEventListener('click', () => {
+            sendImageFrame();
+            setTimeout(() => { requestSaveToFlash('image'); }, 80);
+        });
+
+        // Save & Restore Text State
+        function saveTextState() {
+            localStorage.setItem('matrix_text_content', textInput.value);
+            localStorage.setItem('matrix_font_size', fontSizeSelect.value);
+            localStorage.setItem('matrix_text_align', textAlignSelect.value);
+            localStorage.setItem('matrix_text_valign', textVAlignSelect.value);
+            localStorage.setItem('matrix_line_spacing', lineSpacingSelect.value);
+            localStorage.setItem('matrix_text_color', textColorInput.value);
+            localStorage.setItem('matrix_bg_color', bgColorInput.value);
+            localStorage.setItem('matrix_auto_wrap', chkAutoWrap.checked ? '1' : '0');
+            localStorage.setItem('matrix_rus_hyphen', chkRussianHyphen.checked ? '1' : '0');
+        }
+
+        function restoreTextState() {
+            if (localStorage.getItem('matrix_text_content') !== null) textInput.value = localStorage.getItem('matrix_text_content');
+            if (localStorage.getItem('matrix_font_size') !== null) fontSizeSelect.value = localStorage.getItem('matrix_font_size');
+            if (localStorage.getItem('matrix_text_align') !== null) textAlignSelect.value = localStorage.getItem('matrix_text_align');
+            if (localStorage.getItem('matrix_text_valign') !== null) textVAlignSelect.value = localStorage.getItem('matrix_text_valign');
+            if (localStorage.getItem('matrix_line_spacing') !== null) lineSpacingSelect.value = localStorage.getItem('matrix_line_spacing');
+            if (localStorage.getItem('matrix_text_color') !== null) {
+                textColorInput.value = localStorage.getItem('matrix_text_color');
+                document.getElementById('textColorHex').textContent = textColorInput.value;
+            }
+            if (localStorage.getItem('matrix_bg_color') !== null) {
+                bgColorInput.value = localStorage.getItem('matrix_bg_color');
+                document.getElementById('bgColorHex').textContent = bgColorInput.value;
+            }
+            if (localStorage.getItem('matrix_auto_wrap') !== null) chkAutoWrap.checked = (localStorage.getItem('matrix_auto_wrap') === '1');
+            if (localStorage.getItem('matrix_rus_hyphen') !== null) chkRussianHyphen.checked = (localStorage.getItem('matrix_rus_hyphen') === '1');
+        }
+
+        // Save & Restore Image State
+        function saveImageState() {
+            localStorage.setItem('matrix_img_fit', imgFitMode.value);
+            localStorage.setItem('matrix_img_dither', imgDitherMode.value);
+            localStorage.setItem('matrix_img_sat', imgSaturation.value);
+            localStorage.setItem('matrix_img_strength', imgDitherStrength.value);
+            localStorage.setItem('matrix_img_bright', imgBrightness.value);
+            localStorage.setItem('matrix_img_contrast', imgContrast.value);
+        }
+
+        function restoreImageState() {
+            if (localStorage.getItem('matrix_img_fit')) imgFitMode.value = localStorage.getItem('matrix_img_fit');
+            if (localStorage.getItem('matrix_img_dither')) imgDitherMode.value = localStorage.getItem('matrix_img_dither');
+            if (localStorage.getItem('matrix_img_sat')) {
+                imgSaturation.value = localStorage.getItem('matrix_img_sat');
+                document.getElementById('saturationVal').textContent = (imgSaturation.value > 0 ? '+' : '') + imgSaturation.value + '%';
+            }
+            if (localStorage.getItem('matrix_img_strength')) {
+                imgDitherStrength.value = localStorage.getItem('matrix_img_strength');
+                document.getElementById('ditherStrengthVal').textContent = imgDitherStrength.value + '%';
+            }
+            if (localStorage.getItem('matrix_img_bright')) {
+                imgBrightness.value = localStorage.getItem('matrix_img_bright');
+                document.getElementById('brightnessVal').textContent = (imgBrightness.value > 0 ? '+' : '') + imgBrightness.value + '%';
+            }
+            if (localStorage.getItem('matrix_img_contrast')) {
+                imgContrast.value = localStorage.getItem('matrix_img_contrast');
+                document.getElementById('contrastVal').textContent = (imgContrast.value > 0 ? '+' : '') + imgContrast.value + '%';
+            }
+        }
+
+        // Restore Drawing State
+        function restoreDrawingState() {
+            const savedDrawing = localStorage.getItem('matrix_draw_data');
+            if (savedDrawing) {
+                const img = new Image();
+                img.onload = () => {
+                    dCtx.drawImage(img, 0, 0);
+                    saveCanvasState();
+                };
+                img.src = savedDrawing;
+            }
+            if (localStorage.getItem('matrix_brush_size')) brushSizeSelect.value = localStorage.getItem('matrix_brush_size');
+            if (localStorage.getItem('matrix_eraser_size')) eraserSizeSelect.value = localStorage.getItem('matrix_eraser_size');
+        }
+
+        brushSizeSelect.addEventListener('change', () => {
+            localStorage.setItem('matrix_brush_size', brushSizeSelect.value);
+        });
+        eraserSizeSelect.addEventListener('change', () => {
+            localStorage.setItem('matrix_eraser_size', eraserSizeSelect.value);
+        });
+
+        // Initialize state on load
+        restoreTextState();
+        restoreImageState();
+        restoreDrawingState();
+        updateTextPreview();
+
+        const initialMode = localStorage.getItem('matrix_boot_mode') || localStorage.getItem('matrix_active_mode') || 'draw';
+        selectMode(initialMode);
+
+        // ==================== COMMON BINARY FRAME TRANSMISSION ====================
+        // Converts RGBA canvas data into optimized 1-byte RGB bitmap stream (16 KB) for instant Wi-Fi transmission
+        function sendBitmapData(rgbaData, name) {
+            const pixelCount = MATRIX_WIDTH * MATRIX_HEIGHT; // 128 * 128 = 16384 pixels
+            // Binary packet: [TYPE=2 (FRAME), WIDTH(1), HEIGHT(1), ...RGB Mask (1 byte/pix: R=bit0, G=bit1, B=bit2)]
+            const headerSize = 3;
+            const buffer = new Uint8Array(headerSize + pixelCount);
+            
+            buffer[0] = 0x02; // Type 2 = Full Frame (Packed 1-byte RGB)
+            buffer[1] = MATRIX_WIDTH & 0xFF;
+            buffer[2] = MATRIX_HEIGHT & 0xFF;
+
+            let outIdx = headerSize;
+            for (let i = 0; i < rgbaData.length; i += 4) {
+                let mask = 0;
+                if (rgbaData[i] > 127)     mask |= 0x01; // Red
+                if (rgbaData[i + 1] > 127) mask |= 0x02; // Green
+                if (rgbaData[i + 2] > 127) mask |= 0x04; // Blue
+                buffer[outIdx++] = mask;
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(buffer.buffer);
+                showToast(`🚀 ${name} отправлено на экран (${(buffer.length / 1024).toFixed(1)} КБ)!`);
+            } else {
+                console.log(`[WS Demo] Full Frame '${name}' prepared: ${buffer.length} bytes ready to send to ESP32.`);
+                showToast(`[Демо-режим] ${name} сгенерировано (${(buffer.length / 1024).toFixed(1)} КБ)`);
+            }
+        }
+    </script>
+</body>
+</html>

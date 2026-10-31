@@ -9,8 +9,9 @@ scratch/
 temp_code.txt
 *.tmp
 *.log
+*.bak
 
-# Temporary evaluation and scraper files
+# Temporary evaluation and research files
 search_*.py
 fetch_*.py
 bing_search.py
@@ -21,11 +22,27 @@ test_chips.py
 droidcam.html
 article.html
 protocol_research_report.txt
-spwm-helpers.txt
+spwm-helpers.*
 spwm-panel-config.txt
 spwm-panel-registers.txt
 ESP_LED/
 test_dma/
+cam_monitor.py
+dmd_spwm_driver.h
+spwm.md
+dp32020a.pdf
+DP32020A_datasheet.pdf
+fidget_spinner_*.h
+image_to_matrix.py
+TEST_ARCHIVE/
+*.md.bak
+CONSOLIDATED_RESEARCH_*.md
+DP3356_*.md
+ESP32S3_*.md
+INFLECTION_*.md
+PWM_*.md
+README_FINAL.md
+TEST*.md
 
 # Evaluation images (camera captures)
 *.jpg

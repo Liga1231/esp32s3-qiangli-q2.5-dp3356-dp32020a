@@ -1,6 +1,6 @@
 # ESP32-S3 Qiangli Q2.5 Pro LED Matrix Driver (DP3356 / DP3265S + DP32020A)
 
-[![Release](https://img.shields.io/badge/Release-v1.0.0%20Stable-blueviolet.svg)]()
+[![Release](https://img.shields.io/badge/Release-v2.1.0%20Pro-blueviolet.svg)]()
 [![ESP32-S3](https://img.shields.io/badge/SoC-ESP32--S3%20Super%20Mini-blue.svg)](https://www.espressif.com/)
 [![Panel](https://img.shields.io/badge/Panel-Qiangli%20Q2.5%20Pro%20(128x64)-green.svg)](https://www.qiangli.com/)
 [![Driver](https://img.shields.io/badge/Driver-DP3356%20%7C%20DP3265S-orange.svg)](https://www.depuw.com/)
@@ -36,12 +36,20 @@
 ---
 
 ## Navigation / Навигация
-* [English Version](#-english-version)
+* [🚀 Release v2.1.0: Dual-Panel 128×128 Matrix Studio (Wi-Fi + LittleFS)](#-release-v210-dual-panel-128128-matrix-studio-wi-fi--littlefs)
+  * [1. How the Code Works](#1-how-the-code-works)
+  * [2. How Another User Can Configure It](#2-how-another-user-can-configure-it)
+  * [3. How to Build, Flash and Run](#3-how-to-build-flash-and-run)
+* [🚀 Релиз v2.1.0: Двухпанельная Matrix Studio 128×128 (Wi-Fi + LittleFS)](#-релиз-v210-двухпанельная-matrix-studio-128128-wi-fi--littlefs)
+  * [1. Как устроен и работает код](#1-как-устроен-и-работает-код)
+  * [2. Как настроить проект под себя](#2-как-настроить-проект-под-себя)
+  * [3. Как собрать, прошить и запустить](#3-как-собрать-прошить-и-запустить)
+* [English Version (v1.0.0 Single-Panel Foundation)](#-english-version)
   * [Key Hardware Specifications](#1-key-hardware-specifications)
   * [Wiring & HUB75 Pinout](#2-wiring--hub75-pinout)
   * [Major Engineering Discoveries & Physics](#3-major-engineering-discoveries--physics)
   * [Build & Flash Settings](#4-build--flash-settings)
-* [Русская версия](#-русская-версия)
+* [Русская версия (Фундамент v1.0.0)](#-русская-версия)
   * [Аппаратные характеристики сборки (v1.0.0 Stable)](#1-аппаратные-характеристики-сборки-v100-stable)
   * [Распиновка подключения (HUB75 ➔ ESP32-S3)](#2-распиновка-подключения-hub75--esp32-s3)
   * [Принцип работы и физика решений](#3-принцип-работы-и-физика-решений)
@@ -193,15 +201,216 @@ compile_and_flash.bat
 
 ---
 
-## 📁 Структура репозитория
+## 📁 Project Structure / Структура репозитория
 
-* [`esp_wibe.ino`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/esp_wibe.ino) — Финальная релизная прошивка v1.0.0 Stable без отладки и с максимальной скоростью.
-* [`splash_data.h`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/splash_data.h) — Битовые маски калиброванного графического сплеш-скрина (смайлик, сердечки, рамки).
-* [`compile_and_flash.bat`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/compile_and_flash.bat) — Скрипт автоматической компиляции и прошивки через Arduino CLI.
-* [`ESP32_S3_SUPERMINI_CHEAT_SHEET.md`](file:///c:/Users/Liga.inc/Desktop/esp_wibe/ESP32_S3_SUPERMINI_CHEAT_SHEET.md) — Аппаратная шпаргалка по граблям платы ESP32-S3 Super Mini.
+```text
+esp_wibe/
+├── matrix_128x128_WiFi/               <-- [CURRENT RELEASE v2.1.0] Dual-Panel 128x128 Matrix Studio
+│   ├── matrix_128x128_WiFi.ino       <-- Main firmware (50 FPS, Wi-Fi SoftAP, WebSocket, LittleFS)
+│   ├── matrix128x128_data.h          <-- Default 128x128 pixel art frame
+│   ├── web_page_data.h               <-- GZIP-compressed Single Page Application (16.2 KB)
+│   ├── web_ui_preview.html           <-- Raw HTML5/JS Studio source for browser editing
+│   └── create_128x128_artwork.py     <-- Artwork generator helper
+│
+├── matrix_128x64_single/             <-- [LEGACY v1.0.0] Single-Panel 128x64 Standalone
+│   ├── matrix_128x64_single.ino      <-- 99.4 FPS driver with hardware splash screen
+│   └── splash_data.h                 <-- Calibration smiley artwork
+│
+├── docs/                             <-- Documentation assets and photos
+├── compile_and_flash.bat             <-- One-click automated compile & upload script (with project selection)
+├── ESP32_S3_SUPERMINI_CHEAT_SHEET.md <-- Hardware guide & common pitfalls for ESP32-S3 Super Mini
+└── README.md                         <-- Complete bilingual documentation
+```
 
 ---
 
 ## License & Attribution
 Distributed under the **MIT License**.  
 Reverse-engineered, debugged, and verified through empirical hardware analysis on **ESP32-S3 Super Mini** + **Qiangli Q2.5 Pro**.
+
+
+---
+
+# 🚀 Release v2.1.0: Dual-Panel 128×128 Matrix Studio (Wi-Fi + LittleFS)
+
+### 1. How the Code Works
+
+The v2.1.0 architecture connects **two 128×64 Qiangli Q2.5 Pro panels** in a hardware daisy chain into a seamless **128×128 RGB Matrix** (16,384 pixels = 49,152 discrete LED dies) driven by a single ESP32-S3 Super Mini.
+
+```mermaid
+flowchart TD
+    subgraph Client ["Client Browser (Phone / PC)"]
+        UI["Web Studio SPA (HTML5/Canvas)"]
+    end
+
+    subgraph ESP32 ["ESP32-S3 SoC (Dual Core 240 MHz)"]
+        AP["SoftAP 'matrix 128x128' (192.168.4.1)"]
+        WS["Async WebSocket Server (Core 0)"]
+        FS["LittleFS Flash Storage (/boot_frame.bin)"]
+        RAM["Fast SRAM Framebuffer: 32 KB active_frame[32][16][16]"]
+        SCAN["Zero-Beat 50.00 FPS Engine (Core 1)"]
+    end
+
+    subgraph Hardware ["HUB75 Hardware Daisy Chain"]
+        P1["Panel 1 (Top 128x64): Chips 8..15"]
+        P2["Panel 2 (Bottom 128x64): Chips 0..7"]
+    end
+
+    UI -->|"HTTP GET / (GZIP 16 KB)"| AP
+    UI -->|"Binary WebSocket Packets"| WS
+    WS -->|"Draw / Text / Image"| RAM
+    WS -->|"Save Button (0x03)"| FS
+    FS -->|"Restore on Boot"| RAM
+    SCAN -->|"Read Line"| RAM
+    SCAN -->|"Shift 256 bits (GPIO)"| P1
+    P1 -->|"Daisy Chain Ribbon"| P2
+```
+
+1. **Dual-Panel Daisy Chaining & Framebuffer Memory:**
+   - The matrix is structured as 16 daisy-chained DP3356 driver chips per line (8 chips on Panel 2 + 8 chips on Panel 1).
+   - The framebuffer is stored in fast internal SRAM as `uint32_t active_frame[32][16][16]` (32 KB total).
+   - In each 32-line cycle, 256 RGB bits are shifted sequentially out to the panels with the hardware latch pulse applied strictly on the 16th chip.
+
+2. **Calibrated 50.000 FPS Zero-Beat Scan Engine:**
+   - Powered by full-wave rectified 50 Hz AC mains, power supplies exhibit a 100 Hz voltage ripple.
+   - The scan engine timing is calibrated to exactly **20,000 µs per frame (50.00 FPS)**, ensuring the differential beat frequency with the electrical mains is $F_\text{beat} = 0.00\text{ Hz}$. This completely eliminates moving dark bands on smartphone video cameras and human vision.
+   - Hardware row blanking is strictly enforced by pulling `PIN_A (DCK) = HIGH` on the DP32020A decoders during data shifting.
+
+3. **High-Performance Web Studio SPA & Binary Protocol:**
+   - The web app is stored as a pre-compressed GZIP byte array (`web_page_data.h`) in flash and served directly from RAM without requiring an SD card.
+   - Low-latency real-time updates use an asynchronous WebSocket connection:
+     - `0x01 [x, y, r, g, b]` (5 bytes): Real-time live drawing tool strokes.
+     - `0x02 [16,384 bytes]`: Full 128×128 binary frame transfer for instant photo / text updates.
+     - `0x03 [mode_id]`: Writes the active 32 KB SRAM framebuffer to LittleFS `/boot_frame.bin`.
+
+4. **Non-Volatile Boot Persistence (LittleFS):**
+   - On power-up, `setup()` mounts LittleFS. If `/boot_frame.bin` exists and is intact, it restores the saved artwork in 5 milliseconds. Otherwise, it falls back to the embedded default artwork `matrix128x128_data.h`.
+
+---
+
+### 2. How Another User Can Configure It
+
+#### A. Physical Panel Assembly:
+1. Mount the two 128×64 panels vertically (Panel 1 on top, Panel 2 on the bottom).
+2. Connect the **ESP32-S3 HUB75 cable** to the **INPUT connector of Panel 1**.
+3. Connect a 16-pin ribbon cable from **OUTPUT of Panel 1** to **INPUT of Panel 2**.
+4. Power both panels with a **5V 10A–20A** regulated power supply (connect thick ground and 5V wires to both panels and the ESP32-S3 GND).
+
+#### B. Software Configuration:
+All configuration settings are at the top of `matrix_128x128_WiFi/matrix_128x128_WiFi.ino`:
+```cpp
+// Wi-Fi Access Point Name and Password:
+WiFi.softAP("matrix 128x128", "123456788");
+
+// Default IP is 192.168.4.1
+```
+You can change the SSID and password string directly in `setup()`.
+
+---
+
+### 3. How to Build, Flash and Run
+
+#### A. Arduino IDE Prerequisites:
+Install the following libraries via the Arduino Library Manager:
+- **`ESPAsyncWebServer`** (by ESP32Async / me-no-dev)
+- **`AsyncTCP`** (by ESP32Async / me-no-dev)
+- **`LittleFS`** (built into the ESP32 core)
+
+#### B. Board Settings in Arduino IDE:
+* **Board:** `ESP32S3 Dev Module`
+* **USB CDC On Boot:** **`Enabled`** *(CRITICAL: required for USB serial & upload)*
+* **Flash Mode:** **`DIO 80MHz`** *(CRITICAL: Never use QIO; causes ets_loader panic)*
+* **Flash Size:** `4MB (32Mb)`
+* **Partition Scheme:** `Default 4MB with spiffs (1.2MB APP / 1.5MB SPIFFS/LittleFS)`
+* **PSRAM:** `QSPI PSRAM`
+* **CPU Frequency:** `240MHz`
+
+#### C. Flashing:
+Open `matrix_128x128_WiFi/matrix_128x128_WiFi.ino` in Arduino IDE and click **Upload**, or run the automated script from the terminal:
+```cmd
+compile_and_flash.bat
+```
+
+#### D. Running the System:
+1. After flashing, the onboard LED flashes and the display immediately lights up.
+2. On your smartphone or computer, open Wi-Fi settings and connect to:
+   - **SSID:** `matrix 128x128`
+   - **Password:** `123456788`
+3. Open any web browser and go to: **`http://192.168.4.1/`**
+4. Enjoy real-time 128×128 drawing, text typography, or photo conversion. Click **«💾 Сохранить»** in any tab to make your artwork permanent across power reboots!
+
+---
+
+# 🚀 Релиз v2.1.0: Двухпанельная Matrix Studio 128×128 (Wi-Fi + LittleFS)
+
+### 1. Как устроен и работает код
+
+В релизе v2.1.0 две физические панели 128×64 Qiangli Q2.5 Pro объединены через аппаратный сквозной шлейф в единую бесшовную **RGB LED матрицу 128×128** (16 384 пикселей = 49 152 светодиодных кристалла), управляемую одной платой ESP32-S3 Super Mini.
+
+1. **Аппаратное каскадирование и видеобуфер:**
+   - 16 микросхем сдвига DP3356 включены в последовательную цепочку (8 чипов на нижней панели + 8 чипов на верхней панели).
+   - Буфер активного кадра расположен в быстрой внутренней SRAM-памяти: `uint32_t active_frame[32][16][16]` (32 КБ).
+   - За один такт строки контроллер сдвигает 256 RGB-бит на полной частоте GPIO с аппаратным стробом фиксации (Latch) на последнем 16-м чипе.
+
+2. **Синхронизированный с сетью движок 50.000 FPS:**
+   - Блоки питания после диодного моста имеют пульсацию 100 Гц.
+   - Время сканирования кадра откалибровано ровно на **20 000 мкс (50.00 FPS)**, благодаря чему разностная частота биений равна строго $0.00\text{ Гц}$. На экране и при съёмке на телефон полностью отсутствуют бегущие тёмные полосы.
+   - Аппаратное гашение P-MOSFET ключей выполняется поднятием `PIN_A (DCK) = HIGH` на дешифраторах DP32020A во время сдвига данных.
+
+3. **Веб-интерфейс Matrix Studio и бинарный WebSocket-протокол:**
+   - Веб-приложение сжато в GZIP (`web_page_data.h`, 16.2 КБ) и отдается сервером из Flash-памяти за миллисекунды.
+   - Обмен данными происходит по WebSocket без накладных расходов:
+     - `0x01 [x, y, r, g, b]` (5 байт): Live-рисование в реальном времени.
+     - `0x02 [16 384 байт]`: Полный кадр для мгновенного вывода текста и фото.
+     - `0x03 [mode]`: Команда записи буфера кадра во Flash-память LittleFS (`/boot_frame.bin`).
+
+4. **Автозагрузка сохраненного рисунка (LittleFS):**
+   - При подаче питания микроконтроллер монтирует файловую систему LittleFS. Если файл `/boot_frame.bin` найден, он загружается в оперативную память за 5 мс. Пользователю не нужно заходить в веб-интерфейс после каждого включения питания.
+
+---
+
+### 2. Как настроить проект под себя
+
+#### А. Сборка конструкции:
+1. Закрепите две панели 128×64 друг над другом (Панель 1 — сверху, Панель 2 — снизу).
+2. Подключите шлейф от **ESP32-S3 к разъему INPUT (Вход) Панели 1**.
+3. Соедините коротким 16-пиновым шлейфом разъем **OUTPUT (Выход) Панели 1 с разъемом INPUT (Вход) Панели 2**.
+4. Подайте питание 5В (10А–20А) на силовые колодки обеих панелей и ESP32-S3.
+
+#### Б. Настройки в коде:
+В файле `matrix_128x128_WiFi/matrix_128x128_WiFi.ino` в функции `setup()` можно изменить имя сети и пароль:
+```cpp
+WiFi.softAP("matrix 128x128", "123456788");
+```
+
+---
+
+### 3. Как собрать, прошить и запустить
+
+#### А. Необходимые библиотеки для Arduino IDE:
+Установите через менеджер библиотек:
+- **`ESPAsyncWebServer`** (автор ESP32Async или me-no-dev)
+- **`AsyncTCP`** (автор ESP32Async или me-no-dev)
+
+#### Б. Настройки платы в Arduino IDE:
+* **Board:** `ESP32S3 Dev Module`
+* **USB CDC On Boot:** **`Enabled`** *(Обязательно!)*
+* **Flash Mode:** **`DIO 80MHz`** *(Обязательно! Режим QIO вызовет ошибку `ets_loader.c 78`)*
+* **Flash Size:** `4MB (32Mb)`
+* **Partition Scheme:** `Default 4MB with spiffs (1.2MB APP / 1.5MB SPIFFS/LittleFS)`
+* **PSRAM:** `QSPI PSRAM`
+* **CPU Frequency:** `240MHz`
+
+#### В. Прошивка:
+Откройте скетч `matrix_128x128_WiFi/matrix_128x128_WiFi.ino` в Arduino IDE и нажмите кнопку **Загрузить**, либо запустите готовый командный файл:
+```cmd
+compile_and_flash.bat
+```
+
+#### Г. Использование:
+1. После включения матрицы подключитесь со смартфона или ноутбука к Wi-Fi сети:
+   - Имя сети: **`matrix 128x128`**
+   - Пароль: **`123456788`**
+2. В браузере перейдите по адресу: **`http://192.168.4.1/`**
+3. Рисуйте кистью любого размера, пишите текст с автопереносом или загружайте фотографии.
+4. Нажмите кнопку **«💾 Сохранить»** — и экран запомнит изображение навсегда!
