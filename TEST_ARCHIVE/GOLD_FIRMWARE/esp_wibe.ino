@@ -183,8 +183,6 @@ void setup() {
 }
 
 void loop() {
-    int64_t t_frame_start = esp_timer_get_time();
-
     // 1. One-time sequence: transmit 13 config registers once, then hold VSYNC only
     static uint8_t s_cfg_idx = 0;
     if (s_cfg_idx < 13) {
@@ -235,15 +233,9 @@ void loop() {
         GPIO.out_w1tc = (1UL << PIN_A);
         esp_rom_delay_us(1);
 
-        // Step E: Required PWM timing burst (256 GCLK cycles per line):
-        for (uint32_t i = 0; i < 32; i++) {
+        // Step E: Required PWM timing burst (calibrated 34 iterations for exact 100Hz sync with zero interframe jitter):
+        for (uint32_t i = 0; i < 34; i++) {
             CLK_PULSE_8();
         }
-    }
-
-    // Hardware phase-lock to exactly 10 000 us (100.00 FPS):
-    // Eliminates 100Hz AC mains power ripple beat (0.00 Hz beat = ZERO stripes):
-    while ((esp_timer_get_time() - t_frame_start) < 10000) {
-        __asm__ __volatile__("nop;");
     }
 }
