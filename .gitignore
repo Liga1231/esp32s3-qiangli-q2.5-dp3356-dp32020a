@@ -1,0 +1,34 @@
+# Git ignore for ESP32-S3 Qiangli Q2.5 Matrix Project
+build/
+.gemini/
+.agent/
+.agents/
+__pycache__/
+*.pyc
+scratch/
+temp_code.txt
+*.tmp
+*.log
+
+# Temporary evaluation and scraper files
+search_*.py
+fetch_*.py
+bing_search.py
+check_motion.py
+capture_cam.py
+monitor_modes.py
+test_chips.py
+droidcam.html
+article.html
+protocol_research_report.txt
+spwm-helpers.txt
+spwm-panel-config.txt
+spwm-panel-registers.txt
+ESP_LED/
+test_dma/
+
+# Evaluation images (camera captures)
+*.jpg
+*.png
+!splash_preview.png
+!docs/panel_preview.jpg

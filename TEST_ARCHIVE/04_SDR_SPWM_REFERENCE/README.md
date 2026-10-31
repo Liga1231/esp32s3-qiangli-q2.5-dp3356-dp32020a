@@ -1,0 +1,13 @@
+# Test 04: Full SDR S-PWM Reference Driver
+- **Date/Time**: 2026-10-31
+- **Driver**: Clean DP3356 16-register + DP32020A blanked driver.
+- **Results**:
+  - Pure solid 100% color separation achieved across all 3 zones.
+  - Left zone (0..42): 100% Blue
+  - Center zone (43..85): 95% Red
+  - Right zone (86..127): 100% Green
+  - No horizontal dashed gaps, no 16-column vertical stripes, no ghost echo.
+  - Channel mapping deduced:
+    - Physical Red = GPIO 4 (R1), GPIO 7 (R2)
+    - Physical Green = GPIO 6 (G1), GPIO 16 (G2)
+    - Physical Blue = GPIO 5 (B1), GPIO 15 (B2)

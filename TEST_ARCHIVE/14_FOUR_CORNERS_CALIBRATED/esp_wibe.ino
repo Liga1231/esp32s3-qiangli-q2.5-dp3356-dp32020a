@@ -1,0 +1,273 @@
+#include <Arduino.h>
+
+// ============================================================================
+// TEST 14: FOUR CORNERS SINGLE-PIXEL VERIFICATION
+// Only 4 physical LEDs on the entire 128x64 panel are turned ON (all others OFF):
+//   1. Top-Left     (X = 0,   Y = 0)  -> Line 0,  Col 0,  Chip 1 (Top Half)
+//   2. Top-Right    (X = 127, Y = 0)  -> Line 0,  Col 15, Chip 8 (Top Half)
+//   3. Bottom-Left  (X = 0,   Y = 63) -> Line 31, Col 0,  Chip 1 (Bottom Half)
+//   4. Bottom-Right (X = 127, Y = 63) -> Line 31, Col 15, Chip 8 (Bottom Half)
+//
+// Each corner LED is lit pure WHITE (all R+G+B subpixels on for maximum visibility).
+// ============================================================================
+
+// Physical RGB LED outputs (calibrated with user feedback):
+#define PIN_R1  4   // Top Half Red   (GPIO 4)
+#define PIN_G1  5   // Top Half Green (GPIO 5)
+#define PIN_B1  6   // Top Half Blue  (GPIO 6)
+
+#define PIN_R2  7   // Bottom Half Red   (GPIO 7)
+#define PIN_G2  15  // Bottom Half Green (GPIO 15)
+#define PIN_B2  16  // Bottom Half Blue  (GPIO 16)
+
+// Control pins wired to HUB75 connector:
+#define PIN_CLK 41  // HUB75 Pin 13 (CLK / DCLK)
+#define PIN_LE  40  // HUB75 Pin 14 (LAT / LE)
+#define PIN_OE  2   // HUB75 Pin 15 (OE / ROW)
+
+// Row-address DP32020A pins (HUB75 Pin 9, 10, 11):
+#define PIN_A   18  // DCK (Data Clock)
+#define PIN_B   8   // BK / RCK (Config Clock: MUST REMAIN LOW DURING SCAN)
+#define PIN_C   3   // DIN (Serial Data)
+
+#define ONBOARD_LED 47
+
+#define MATRIX_WIDTH  128
+#define MATRIX_HEIGHT 64
+#define ROWS          32
+#define CHAINED_CHIPS 8
+
+#define ALL_RGB_MASK ((1UL << PIN_R1) | (1UL << PIN_G1) | (1UL << PIN_B1) | \
+                      (1UL << PIN_R2) | (1UL << PIN_G2) | (1UL << PIN_B2))
+
+#define CLK_MASK (1UL << (PIN_CLK - 32))
+#define LAT_MASK (1UL << (PIN_LE - 32))
+
+// Fast clock pulse with 4 NOPs (~16ns) for clean cable signal integrity
+#define CLK_PULSE() do { \
+    GPIO.out1_w1ts.val = CLK_MASK; \
+    __asm__ __volatile__("nop; nop; nop; nop;"); \
+    GPIO.out1_w1tc.val = CLK_MASK; \
+    __asm__ __volatile__("nop; nop; nop; nop;"); \
+} while(0)
+
+#define CLK_PULSE_2()  do { CLK_PULSE(); CLK_PULSE(); } while(0)
+#define CLK_PULSE_4()  do { CLK_PULSE_2(); CLK_PULSE_2(); } while(0)
+#define CLK_PULSE_8()  do { CLK_PULSE_4(); CLK_PULSE_4(); } while(0)
+#define CLK_PULSE_14() do { CLK_PULSE_8(); CLK_PULSE_4(); CLK_PULSE_2(); } while(0)
+#define CLK_PULSE_15() do { CLK_PULSE_14(); CLK_PULSE(); } while(0)
+
+static inline void set_gpio_for_clk_pulses(uint32_t pin, uint32_t width) {
+    if (pin >= 32) GPIO.out1_w1ts.val = (1UL << (pin - 32));
+    else GPIO.out_w1ts = (1UL << pin);
+
+    while (width-- > 0) {
+        CLK_PULSE();
+    }
+
+    if (pin >= 32) GPIO.out1_w1tc.val = (1UL << (pin - 32));
+    else GPIO.out_w1tc = (1UL << pin);
+
+    CLK_PULSE();
+}
+
+void dp3364_vsync(void) {
+    set_gpio_for_clk_pulses(PIN_LE, 3);
+}
+
+// 13 DP3356 Configuration Registers (with full 100% current gain)
+const uint16_t DP3356_CONFIG_REGS[13] = {
+    0x021F, // 32 scan lines (31 + 1)
+    0x033F, // group num = 63
+    0x047F, // max active PWM time
+    0x0504,
+    0x0642,
+    0x0700,
+    0x08FF, // MAXIMUM 100% CURRENT GAIN (255 / 255)
+    0x0960,
+    0x0ABE,
+    0x0B8B,
+    0x0C88,
+    0x0D12,
+    0x1100
+};
+
+// Proper DP3356 Register Write with full hardware handshake per register:
+void write_dp3356_reg(uint16_t reg_word) {
+    set_gpio_for_clk_pulses(PIN_LE, 3);
+    for (int i = 0; i < 16; i++) CLK_PULSE();
+    set_gpio_for_clk_pulses(PIN_LE, 14);
+    for (int i = 0; i < 8; i++) CLK_PULSE();
+
+    for (int i = 0; i < 128; i++) {
+        bool bit = (reg_word >> (15 - (i % 16))) & 1;
+        if (bit) GPIO.out_w1ts = ALL_RGB_MASK;
+        else     GPIO.out_w1tc = ALL_RGB_MASK;
+
+        if (i >= 128 - 5) {
+            GPIO.out1_w1ts.val = LAT_MASK;
+        } else {
+            GPIO.out1_w1tc.val = LAT_MASK;
+        }
+        CLK_PULSE();
+    }
+    GPIO.out1_w1tc.val = LAT_MASK;
+    GPIO.out_w1tc = ALL_RGB_MASK;
+
+    for (int i = 0; i < 8; i++) CLK_PULSE();
+}
+
+void dp3364_init(void) {
+    set_gpio_for_clk_pulses(PIN_LE, 15);
+    for (int r = 0; r < 13; r++) {
+        write_dp3356_reg(DP3356_CONFIG_REGS[r]);
+    }
+}
+
+// Row change pulse on OE (Pin 2 / ROW):
+static inline void dp3364_change_row(uint32_t row) {
+    set_gpio_for_clk_pulses(PIN_OE, (row == 0) ? 12 : 4);
+}
+
+// DP32020A advance row with proper DIN setup and hold time:
+static inline void dp32020_advance_row(uint32_t line) {
+    if (line == 0) {
+        GPIO.out_w1ts = (1UL << PIN_C); // DIN = 1
+    } else {
+        GPIO.out_w1tc = (1UL << PIN_C); // DIN = 0
+    }
+    esp_rom_delay_us(1); // Setup time for DP32020A DIN
+
+    // Pulse DCK (PIN_A=18)
+    GPIO.out_w1ts = (1UL << PIN_A);
+    esp_rom_delay_us(1);
+    GPIO.out_w1tc = (1UL << PIN_A);
+    esp_rom_delay_us(1);
+
+    GPIO.out_w1tc = (1UL << PIN_C); // Clear DIN
+}
+
+void led_panel_advance_row(uint32_t line) {
+    dp3364_change_row(line);
+    dp32020_advance_row(line);
+}
+
+// Active Framebuffer in fast internal SRAM (32 lines x 16 cols x 8 chips = 16KB)
+static uint32_t active_frame[32][16][8];
+
+void setup() {
+    setCpuFrequencyMhz(240);
+    Serial.begin(115200);
+    pinMode(ONBOARD_LED, OUTPUT);
+    digitalWrite(ONBOARD_LED, HIGH);
+
+    pinMode(PIN_R1, OUTPUT); pinMode(PIN_R2, OUTPUT);
+    pinMode(PIN_G1, OUTPUT); pinMode(PIN_G2, OUTPUT);
+    pinMode(PIN_B1, OUTPUT); pinMode(PIN_B2, OUTPUT);
+
+    pinMode(PIN_CLK, OUTPUT);
+    pinMode(PIN_LE,  OUTPUT);
+    pinMode(PIN_OE,  OUTPUT);
+
+    pinMode(PIN_A, OUTPUT);
+    pinMode(PIN_B, OUTPUT);
+    pinMode(PIN_C, OUTPUT);
+
+    digitalWrite(PIN_R1, LOW); digitalWrite(PIN_R2, LOW);
+    digitalWrite(PIN_G1, LOW); digitalWrite(PIN_G2, LOW);
+    digitalWrite(PIN_B1, LOW); digitalWrite(PIN_B2, LOW);
+
+    digitalWrite(PIN_CLK, LOW);
+    digitalWrite(PIN_LE,  LOW);
+    digitalWrite(PIN_OE,  LOW);
+
+    digitalWrite(PIN_A, LOW);
+    digitalWrite(PIN_B, LOW); // Stays LOW permanently
+    digitalWrite(PIN_C, LOW);
+
+    // Clear entire frame: 100% black
+    memset(active_frame, 0, sizeof(active_frame));
+
+    // Top half colors:
+    uint32_t top_r = (1UL << PIN_R1);
+    uint32_t top_g = (1UL << PIN_G1);
+    uint32_t top_b = (1UL << PIN_B1);
+    uint32_t top_w = top_r | top_g | top_b;
+
+    // Bottom half colors:
+    uint32_t bot_r = (1UL << PIN_R2);
+    uint32_t bot_g = (1UL << PIN_G2);
+    uint32_t bot_b = (1UL << PIN_B2);
+    uint32_t bot_w = bot_r | bot_g | bot_b;
+
+    // 1 pixel on each corner:
+    // 1. Top-Left:     Row 1 (Line 0),  Col 0 (Chip 0)
+    active_frame[0][0][0] = top_w;
+
+    // 2. Top-Right:    Row 1 (Line 0),  Col 15 (Chip 7)
+    active_frame[0][15][7] = top_w;
+
+    // 3. Bottom-Left:  Row 64 (Line 30), Col 0 (Chip 0)
+    active_frame[30][0][0] = bot_w;
+
+    // 4. Bottom-Right: Row 64 (Line 30), Col 15 (Chip 7)
+    active_frame[30][15][7] = bot_w;
+
+    delay(300);
+    dp3364_init();
+}
+
+uint32_t frame_count = 0;
+
+void loop() {
+    // 1. Scan all 32 row pairs (rows 0..31 on top, rows 32..63 on bottom)
+    for (uint32_t line = 0; line < ROWS; line++) {
+        for (uint32_t col = 0; col < 16; col++) {
+            for (uint32_t ch = 1; ch <= CHAINED_CHIPS; ch++) {
+                uint32_t mask = active_frame[line][col][ch - 1];
+
+                // Full 16-bit PWM active data (100% full scale)
+                GPIO.out_w1ts = mask;
+                GPIO.out_w1tc = ALL_RGB_MASK & ~mask;
+                CLK_PULSE_15();
+
+                // 16th bit: latch if last chip in chain
+                if (ch == CHAINED_CHIPS) {
+                    GPIO.out1_w1ts.val = CLK_MASK | LAT_MASK;
+                    GPIO.out1_w1tc.val = CLK_MASK | LAT_MASK;
+                } else {
+                    CLK_PULSE();
+                }
+            }
+        }
+
+        // Advance row on both DP3356 and DP32020A
+        led_panel_advance_row(line);
+
+        // Required PWM timing burst (256 GCLK cycles per line):
+        for (uint32_t i = 0; i < 32; i++) {
+            CLK_PULSE_8();
+        }
+    }
+
+    // 2. Clean Flush of Row 31:
+    // Pushes the active '1' out of the DP32020A shift register so Row 31
+    // turns completely OFF while Row 0 data is transmitting on the next frame.
+    GPIO.out_w1tc = (1UL << PIN_C); // DIN = 0
+    GPIO.out_w1ts = (1UL << PIN_A); // DCK = 1
+    esp_rom_delay_us(1);
+    GPIO.out_w1tc = (1UL << PIN_A); // DCK = 0
+
+    // 3. Frame sync
+    dp3364_vsync();
+
+    frame_count++;
+
+    // Non-blocking query
+    if (Serial.available()) {
+        char c = Serial.read();
+        if (c == 'f') {
+            Serial.printf("Panel FPS: %u\n", frame_count);
+        }
+    }
+}
