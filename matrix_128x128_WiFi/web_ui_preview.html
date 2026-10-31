@@ -674,6 +674,7 @@
                         <label>Сглаживание полутонов (Дизеринг):</label>
                         <select id="imgDitherMode" class="text-input">
                             <option value="floyd" selected>Флойд-Стейнберг (Фото / Реализм)</option>
+                            <option value="bayer2">Bayer 2×2 (Микро-сетка / Чёткий)</option>
                             <option value="bayer">Bayer 4×4 (Ретро-пиксель)</option>
                             <option value="none">Без дизеринга (Резкий порог)</option>
                         </select>
@@ -692,6 +693,14 @@
                         <div class="slider-group">
                             <input type="range" id="imgDitherStrength" min="0" max="100" value="85">
                             <span id="ditherStrengthVal" style="font-size: 0.85rem; width: 40px;">85%</span>
+                        </div>
+                    </div>
+
+                    <div class="input-group" id="ditherGrainGroup">
+                        <label>Размер зерна дизеринга (Пиксель):</label>
+                        <div class="slider-group">
+                            <input type="range" id="imgDitherGrain" min="1" max="4" value="1" step="1">
+                            <span id="ditherGrainVal" style="font-size: 0.85rem; width: 60px;">1×1 px</span>
                         </div>
                     </div>
 
@@ -740,6 +749,12 @@
         const MATRIX_HEIGHT = 128;
 
         // 4x4 Bayer Matrix for ordered spatial dithering (enables Orange, Pastels, and subtle shades)
+        const BAYER_2X2 = [
+            [0, 2],
+            [3, 1]
+        ];
+
+        // 4x4 Bayer Matrix for ordered spatial dithering (enables Pastels and subtle shades)
         const BAYER_4X4 = [
             [ 0,  8,  2, 10],
             [12,  4, 14,  6],
@@ -1104,7 +1119,7 @@
         // Realtime pixel network streamer with ordered spatial dithering for blended colors (Orange, Pastels)
         function sendLivePixel(x, y, color) {
             const rgb = hexToRgb(color);
-            const thresh = (BAYER_4X4[y % 4][x % 4] + 0.5) * 16;
+            const thresh = (BAYER_2X2[y % 2][x % 2] + 0.5) * 64;
             const r = rgb.r > thresh ? 255 : 0;
             const g = rgb.g > thresh ? 255 : 0;
             const b = rgb.b > thresh ? 255 : 0;
@@ -1515,6 +1530,7 @@
         const imgDitherMode = document.getElementById('imgDitherMode');
         const imgSaturation = document.getElementById('imgSaturation');
         const imgDitherStrength = document.getElementById('imgDitherStrength');
+        const imgDitherGrain = document.getElementById('imgDitherGrain');
         const imgBrightness = document.getElementById('imgBrightness');
         const imgContrast = document.getElementById('imgContrast');
 
@@ -1527,6 +1543,7 @@
             document.getElementById('contrastVal').textContent = `${imgContrast.value}%`;
             document.getElementById('saturationVal').textContent = `${imgSaturation.value}%`;
             document.getElementById('ditherStrengthVal').textContent = `${imgDitherStrength.value}%`;
+            document.getElementById('ditherGrainVal').textContent = `${imgDitherGrain.value}×${imgDitherGrain.value} px`;
 
             iCtx.fillStyle = '#000000';
             iCtx.fillRect(0, 0, MATRIX_WIDTH, MATRIX_HEIGHT);
@@ -1645,12 +1662,30 @@
                         }
                     }
                 }
-            } else if (ditherMode === 'bayer') {
-                // Bayer 4x4 ordered dithering
+            } else if (ditherMode === 'bayer2') {
+                // Bayer 2x2 ordered micro-dithering with grain scaling
+                const grain = parseInt(imgDitherGrain.value, 10);
                 for (let y = 0; y < MATRIX_HEIGHT; y++) {
+                    const my = Math.floor(y / grain) % 2;
                     for (let x = 0; x < MATRIX_WIDTH; x++) {
+                        const mx = Math.floor(x / grain) % 2;
                         const idx = y * MATRIX_WIDTH + x;
-                        const threshold = ((BAYER_4X4[y % 4][x % 4] / 16.0) - 0.5) * 255.0 * ditherStrength;
+                        const threshold = ((BAYER_2X2[my][mx] / 4.0) - 0.5) * 255.0 * ditherStrength;
+
+                        rBuf[idx] = (rBuf[idx] + threshold > 127.5) ? 255 : 0;
+                        gBuf[idx] = (gBuf[idx] + threshold > 127.5) ? 255 : 0;
+                        bBuf[idx] = (bBuf[idx] + threshold > 127.5) ? 255 : 0;
+                    }
+                }
+            } else if (ditherMode === 'bayer') {
+                // Bayer 4x4 ordered dithering with grain scaling
+                const grain = parseInt(imgDitherGrain.value, 10);
+                for (let y = 0; y < MATRIX_HEIGHT; y++) {
+                    const my = Math.floor(y / grain) % 4;
+                    for (let x = 0; x < MATRIX_WIDTH; x++) {
+                        const mx = Math.floor(x / grain) % 4;
+                        const idx = y * MATRIX_WIDTH + x;
+                        const threshold = ((BAYER_4X4[my][mx] / 16.0) - 0.5) * 255.0 * ditherStrength;
 
                         rBuf[idx] = (rBuf[idx] + threshold > 127.5) ? 255 : 0;
                         gBuf[idx] = (gBuf[idx] + threshold > 127.5) ? 255 : 0;
@@ -1678,7 +1713,7 @@
             iCtx.putImageData(imgData, 0, 0);
         }
 
-        [imgFitMode, imgDitherMode, imgSaturation, imgDitherStrength, imgBrightness, imgContrast].forEach(el => {
+        [imgFitMode, imgDitherMode, imgSaturation, imgDitherStrength, imgDitherGrain, imgBrightness, imgContrast].forEach(el => {
             el.addEventListener('input', processImage);
             el.addEventListener('change', processImage);
         });
@@ -1766,6 +1801,7 @@
             localStorage.setItem('matrix_img_dither', imgDitherMode.value);
             localStorage.setItem('matrix_img_sat', imgSaturation.value);
             localStorage.setItem('matrix_img_strength', imgDitherStrength.value);
+            localStorage.setItem('matrix_img_grain', imgDitherGrain.value);
             localStorage.setItem('matrix_img_bright', imgBrightness.value);
             localStorage.setItem('matrix_img_contrast', imgContrast.value);
         }
@@ -1780,6 +1816,10 @@
             if (localStorage.getItem('matrix_img_strength')) {
                 imgDitherStrength.value = localStorage.getItem('matrix_img_strength');
                 document.getElementById('ditherStrengthVal').textContent = imgDitherStrength.value + '%';
+            }
+            if (localStorage.getItem('matrix_img_grain')) {
+                imgDitherGrain.value = localStorage.getItem('matrix_img_grain');
+                document.getElementById('ditherGrainVal').textContent = imgDitherGrain.value + '×' + imgDitherGrain.value + ' px';
             }
             if (localStorage.getItem('matrix_img_bright')) {
                 imgBrightness.value = localStorage.getItem('matrix_img_bright');
@@ -1839,7 +1879,7 @@
             for (let y = 0; y < MATRIX_HEIGHT; y++) {
                 for (let x = 0; x < MATRIX_WIDTH; x++) {
                     const i = pixIdx * 4;
-                    const thresh = (BAYER_4X4[y % 4][x % 4] + 0.5) * 16;
+                    const thresh = (BAYER_2X2[y % 2][x % 2] + 0.5) * 64;
                     let mask = 0;
                     if (rgbaData[i] > thresh)     mask |= 0x01; // Red
                     if (rgbaData[i + 1] > thresh) mask |= 0x02; // Green
