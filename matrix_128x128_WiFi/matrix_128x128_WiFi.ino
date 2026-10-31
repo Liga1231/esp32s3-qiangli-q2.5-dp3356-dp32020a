@@ -342,6 +342,7 @@ void setup() {
 
     // Setup Wi-Fi SoftAP (SSID: "matrix 128x128", Pass: "123456788")
     WiFi.mode(WIFI_AP);
+    WiFi.setTxPower(WIFI_POWER_8_5dBm);
     WiFi.softAP("matrix 128x128", "123456788");
 
     // Route: Serve SPA Web Studio from Flash (gzip compressed)
@@ -423,7 +424,7 @@ void loop() {
     frames++;
     if (now - last_time >= 1000000) {
         float fps = (float)frames * 1000000.0f / (float)(now - last_time);
-        Serial.printf("[SCAN] FPS: %.2f | Frame: %.1f us\n", fps, (float)(now - last_time) / (float)frames);
+        Serial.printf("[SCAN] FPS: %.2f | Frame: %.1f us | ChipTemp: %.1f C\n", fps, (float)(now - last_time) / (float)frames, temperatureRead());
         frames = 0;
         last_time = now;
     }
