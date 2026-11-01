@@ -675,6 +675,9 @@ static void setup_wifi_server() {
         AsyncWebServerResponse *response = request->beginResponse_P(
             200, "text/html", WEB_PAGE_GZIP, WEB_PAGE_GZIP_LEN);
         response->addHeader("Content-Encoding", "gzip");
+        response->addHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        response->addHeader("Pragma", "no-cache");
+        response->addHeader("Expires", "0");
         request->send(response);
     });
     ws.onEvent(onWsEvent);
