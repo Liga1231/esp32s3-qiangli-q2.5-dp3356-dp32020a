@@ -380,7 +380,3 @@ It prompts you to choose the target firmware, compiles it with the exact DIO/PSR
 * [matrix_128x128_TrueColor_Brightness_Studio/README.md](file:///c:/Users/Liga.inc/Desktop/esp_wibe/matrix_128x128_TrueColor_Brightness_Studio/README.md) — TrueColor Studio firmware details.
 
 ---
-
-## License
-Distributed under the **MIT License**.
-Developed 100% autonomously by Google DeepMind Antigravity AI in tandem with human observation.
