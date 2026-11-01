@@ -14,10 +14,29 @@
   <em>Live capture of the Dual-Panel Qiangli Q2.5 Pro (128x128) running at 77.00 FPS with 24-bit TrueColor on ESP32-S3 Super Mini</em>
 </p>
 
-> **English & Русский**  
-> Высокопроизводительный аппаратный драйвер и веб-студия для LED-панелей **Qiangli Q2.5 Pro (`Q2.5 S20B32 V1.1`)** (1/32 scan) на базе драйверов **Depuwei DP3356** (14-бит аппаратный S-PWM) и дешифраторов строк **DP32020A** (P-MOSFET) на микроконтроллере **ESP32-S3 Super Mini**.
+---
+
+## 🌐 Language Navigation / Выбор языка
+* [🇷🇺 **Русская версия (Russian Version)**](#-русская-версия)
+  * [📡 Быстрое подключение к экрану / Wi-Fi](#-быстрое-подключение-к-экрану--wi-fi-credentials)
+  * [🤖 Автономная разработка ИИ](#-100-автономная-разработка-искусственным-интеллектом-без-ручного-вмешательства)
+  * [🌟 Ключевые возможности v3.0 TrueColor](#-ключевые-возможности-релиза-v30-truecolor-studio)
+  * [📁 Обзор всех прошивок](#-обзор-всех-прошивок-в-репозитории)
+  * [🛠️ Изменение количества панелей (1, 2, 4 панели)](#️-как-изменить-количество-панелей-1-2-4-панели)
+  * [🔌 Распиновка подключения](#-распиновка-подключения-hub75--esp32-s3-super-mini)
+  * [⚙️ Сборка и прошивка](#️-настройки-компиляции-и-прошивки)
+* [🇬🇧 **English Version**](#-english-version)
+  * [📡 Quick Wi-Fi Connection & Credentials](#-quick-wi-fi-connection--credentials)
+  * [🤖 Autonomous AI Development](#-100-autonomous-ai-development-zero-human-code-touched)
+  * [🌟 Key Features of Release v3.0 TrueColor](#-key-features-of-release-v30-truecolor-studio)
+  * [📁 Repository Firmware Overview](#-repository-firmware-overview)
+  * [🛠️ Configuring Screen Count (1, 2, 4 Panels)](#️-how-to-change-the-number-of-panels-1-2-4-panels)
+  * [🔌 Wiring & HUB75 Pinout](#-wiring--hub75-pinout-hub75--esp32-s3-super-mini)
+  * [⚙️ Build and Flash Settings](#️-build-and-flash-settings)
 
 ---
+
+# 🇷🇺 Русская версия
 
 ## 📡 Быстрое подключение к экрану / Wi-Fi Credentials
 
@@ -25,15 +44,7 @@
 * **Имя сети (SSID):** `matrix 128x128`
 * **Пароль:** `123456788`
 * **Адрес веб-студии:** **`http://192.168.4.1/`** (открывается в любом браузере на телефоне, планшете или ПК)
-* **Автосохранение:** Кнопка **«💾 Сохранить»** в интерфейсе навсегда записывает рисунок и уровень яркости в энергонезависимую Flash-память LittleFS.
-
----
-
-### 🤖 100% Autonomous AI Development (Zero Human Code Touched)
-> [!IMPORTANT]
-> **Every single line of source code, hardware timing calculation, register handshake sequence, and documentation in this repository was researched, written, and debugged 100% autonomously by AI (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
-> 
-> **No human touched or manually edited any code or register bits.** The human user strictly functioned as the physical-world observer
+* **Автосохранение:** Кнопка **«💾 Сохранить»** в интерфейсе навсегда записывает рисунок и текущий уровень яркости экрана в энергонезависимую Flash-память LittleFS.
 
 ---
 
@@ -48,7 +59,7 @@
 ## 🌟 Ключевые возможности релиза v3.0 TrueColor Studio
 
 1. **Разгон частоты обновления до 77 Гц (77.00 FPS):**
-   * Шина данных DCLK разогнана до **20.23 МГц** (`PLL160M / 8`).
+   * Шина данных DCLK разогнана до **20.21 МГц** (`PLL160M / 8`, аппаратный блок `LCD_CAM`).
    * Буфер свечения PMOS-строк откалиброван под $200.0\ \mu\text{s}$ (`DWELL_BYTES = 4000`).
    * **Результат:** Любое мерцание боковым зрением полностью устранено. Картинка воспринимается глазом как монолитная матрица.
 
@@ -59,7 +70,7 @@
 
 3. **☀️ Аппаратная регулировка яркости экрана в веб-интерфейсе:**
    * В шапку Web Studio добавлен глобальный мастер-слайдер **«Яркость экрана (5% - 100%)»**.
-   * При перетаскивании ползунка контроллер на лету масштабирует 14-битную гамма-таблицу — экран плавно затухает или разгорается в реальном времени.
+   * При перетаскивании ползунка контроллер на лету масштабирует 14-битную гамма-таблицу через бинарный WebSocket-пакет `0x06` — экран плавно затухает или разгорается в реальном времени.
    * Настройка сохраняется в LittleFS (`/boot_bright.txt`) и восстанавливается при старте.
 
 4. **24-битная TrueColor передача цвета:**
@@ -127,24 +138,24 @@ esp_wibe/
 * 2 панели $128 \times 64$ установлены вертикально (Панель 1 — сверху, Панель 2 — снизу).
 * Шлейф от ESP32 входит во **вход (INPUT) Панели 1**. Выход Панели 1 соединяется со **входом Панели 2**.
 * В коде:
-  ```cpp
-  #define MATRIX_WIDTH      128
-  #define MATRIX_HEIGHT     128
-  #define CHAINED_CHIPS     16     // 8 чипов Панели 2 + 8 чипов Панели 1
-  ```
-  Сдвиг: $16 \text{ чипов} \times 16 \text{ каналов} \times 16 \text{ бит} = 4096\text{ байт}$ на строку (2 дескриптора по 2048 байт).
+   ```cpp
+   #define MATRIX_WIDTH      128
+   #define MATRIX_HEIGHT     128
+   #define CHAINED_CHIPS     16     // 8 чипов Панели 2 + 8 чипов Панели 1
+   ```
+   Сдвиг: $16 \text{ чипов} \times 16 \text{ каналов} \times 16 \text{ бит} = 4096\text{ байт}$ на строку (2 дескриптора по 2048 байт).
 
 ---
 
 ### Вариант В: Четыре панели 256×128 (Широкий экран)
 * 2 верхние панели соединены горизонтально, 2 нижние — под ними.
-* При последовательном шлейфе `CHAINED_CHIPS = 32`:
-  ```cpp
-  #define MATRIX_WIDTH      256
-  #define MATRIX_HEIGHT     128
-  #define CHAINED_CHIPS     32
-  ```
-  Буфер сдвига строки: $32 \times 16 \times 16 = 8192\text{ байта}$ (4 дескриптора по 2048 байт). Для сохранения высокой частоты кадров шина DCLK работает на 20–25 МГц.
+* При последовательном соединении шлейфом `CHAINED_CHIPS = 32`:
+   ```cpp
+   #define MATRIX_WIDTH      256
+   #define MATRIX_HEIGHT     128
+   #define CHAINED_CHIPS     32
+   ```
+   Буфер сдвига строки: $32 \times 16 \times 16 = 8192\text{ байта}$ (4 дескриптора по 2048 байт). Для сохранения высокой частоты кадров шина DCLK работает на 20–25 МГц.
 
 ---
 
@@ -164,7 +175,7 @@ esp_wibe/
 | **Pin 10** | **B** | DP32020A: Конфигурационный такт (**BK/RCK**) | **GPIO 8** | Постоянный уровень LOW |
 | **Pin 11** | **C** | DP32020A: Данные строчного регистра (**DIN**) | **GPIO 3** | Маркер строки 0 |
 | **Pin 12** | **GND** | Общий провод (земля) | **GND** | Общая земля с БП |
-| **Pin 13** | **CLK** | DP3356: Тактирование сдвига данных (**DCLK**) | **GPIO 41** | 20 МГц LCD_CAM |
+| **Pin 13** | **CLK** | DP3356: Тактирование сдвига данных (**DCLK**) | **GPIO 41** | 20.21 МГц LCD_CAM |
 | **Pin 14** | **LAT** | DP3356: Защёлка команд и данных (**LE**) | **GPIO 40** | Latch / VSYNC |
 | **Pin 15** | **OE** | DP3356: Сигнал смены строки (**ROW**) | **GPIO 2** | Запуск S-PWM |
 | **Pin 16** | **GND** | Общий провод (земля) | **GND** | Общая земля с БП |
@@ -193,14 +204,182 @@ compile_and_flash.bat
 
 ---
 
-## 📄 Дополнительная документация
+# 🇬🇧 English Version
 
-* [FULL_PROJECT_REPORT_77HZ_TRUECOLOR.md](file:///c:/Users/Liga.inc/Desktop/esp_wibe/matrix_128x128_TrueColor_Brightness_Studio/FULL_PROJECT_REPORT_77HZ_TRUECOLOR.md) — Исчерпывающий инженерный отчёт по экспериментам Кими, физике DP3356 и разгону до 77 Гц.
-* [ESP32_S3_SUPERMINI_CHEAT_SHEET.md](file:///c:/Users/Liga.inc/Desktop/esp_wibe/ESP32_S3_SUPERMINI_CHEAT_SHEET.md) — Шпаргалка по чипу ESP32-S3 Super Mini, решению циклических перезагрузок и режимам USB.
-* [TEST_ARCHIVE/](file:///c:/Users/Liga.inc/Desktop/esp_wibe/TEST_ARCHIVE/) — История всех 55 проведённых испытаний и эталонных сборок.
+## 📡 Quick Wi-Fi Connection & Credentials
+
+When the ESP32-S3 boots up, it automatically creates a dedicated Wi-Fi access point:
+* **Network Name (SSID):** `matrix 128x128`
+* **Password:** `123456788`
+* **Web Studio Address:** **`http://192.168.4.1/`** (open in any web browser on iOS, Android, tablet, or PC)
+* **Persistence:** The **«💾 Save»** button in the Web Studio permanently writes the artwork and master brightness level to non-volatile LittleFS Flash memory.
 
 ---
 
-## Лицензия
-Распространяется под свободной лицензией **MIT License**.
-Проект создан при помощи автономного ИИ-агента (Google DeepMind Antigravity) в паре с человеком-оператором.
+### 🤖 100% Autonomous AI Development (Zero Human Code Touched)
+> [!IMPORTANT]
+> **Every single line of source code, hardware timing calculation, register handshake sequence, and documentation in this repository was researched, written, and debugged 100% autonomously by AI (Google DeepMind Antigravity / Gemini / ChatGPT Tandem Architecture).**
+> 
+> **No human touched or manually edited any code or register bits.** The human user strictly functioned as the physical-world observer
+
+---
+
+## 🌟 Key Features of Release v3.0 TrueColor Studio
+
+1. **Turbo Refresh Rate of 77 Hz (77.00 FPS):**
+   * DCLK data bus overclocked to **20.21 MHz** (`PLL160M / 8`, hardware `LCD_CAM` peripheral).
+   * Row PMOS dwell lighting window calibrated to $200.0\ \mu\text{s}$ (`DWELL_BYTES = 4000`).
+   * **Result:** Peripheral eye flicker is 100% eliminated. The display appears as a rock-solid, monolithic OLED-like image.
+
+2. **Maximum Silicon Optical Output (`REG04=0x04FF` + `REG06=0x0640`):**
+   * In-depth physical hardware experimentation revealed driver physics: the S-PWM burst was concluding prematurely, and the internal PLL GCLK multiplier compressed it when DCLK speed was increased.
+   * Pairing `REG04=0x04FF` (doubling active PWM counter window from 127 to 255) with `REG06=0x0640` (slowing internal GCLK PLL multiplier to $\times 1$ instead of $\times 3$) stretched the S-PWM photon burst across the full $200.0\ \mu\text{s}$ line window, achieving peak physical LED brightness.
+   * Analog current DAC locked to maximum 200% force current (`REG08 = 0x08FF`).
+
+3. **☀️ Hardware Screen Master Brightness Slider:**
+   * Global master slider **«Screen Brightness (5% - 100%)»** integrated into the Web Studio header.
+   * Moving the slider dynamically re-scales the 14-bit gamma lookup table via binary WebSocket opcode `0x06` — display brightness smoothly dims or brightens in real-time.
+   * Preserved across reboots in LittleFS (`/boot_bright.txt`).
+
+4. **24-bit TrueColor High-Fidelity Rendering:**
+   * Uncompressed RGB888 streaming support (WebSocket packet `0x05`, 49,155 bytes).
+   * 16.7 million visible colors with continuous tonal ramps driven by 14-bit hardware S-PWM ($16\,384$ shades per channel).
+   * Real-time image processing pipeline: Gamma ($0.40 - 2.60$), Contrast, Saturation, Sharpness (Unsharp Mask $3 \times 3$), Black Level clipping, Color Temperature, and Live Sync preview.
+
+---
+
+## 📁 Repository Firmware Overview
+
+The repository provides 3 distinct, production-ready firmwares:
+
+```text
+esp_wibe/
+├── matrix_128x128_TrueColor_Brightness_Studio/  <-- [FLAGSHIP v3.0] Primary release (77 Hz TrueColor)
+├── matrix_128x128_WiFi_GDMA/                    <-- [STUDIO RELEASE v2.5] 50 FPS camera-locked
+└── matrix_128x64_single/                        <-- [STANDALONE v1.0] Single panel (128x64, 99.4 FPS)
+```
+
+### 1. `matrix_128x128_TrueColor_Brightness_Studio` (Flagship v3.0)
+* **Resolution:** $128 \times 128$ (2 cascaded panels, 16,384 pixels, 49,152 LED emitters).
+* **Refresh Rate:** **77.00 FPS / 77 Hz** (20.21 MHz DCLK, zero flicker).
+* **Engine:** Hardware LCD_CAM + GDMA on ESP32-S3 (0% CPU load for rendering).
+* **Color Depth:** 24-bit TrueColor RGB888 (16.7M colors) + 4 dithering modes (Floyd-Steinberg HD, Bayer 2x2, Bayer 4x4, 8-Color retro).
+* **Web UI:** Embedded responsive Web Studio with hardware brightness slider, drawing canvas, multi-line text engine, and photo converter.
+* **Storage:** LittleFS Flash persistence (`/boot_gray.bin`, `/boot_bright.txt`, `/boot_mode.txt`).
+* **Target Audience:** Daily standalone use as a finished consumer-grade smart matrix display.
+
+### 2. `matrix_128x128_WiFi_GDMA` (Studio Release v2.5)
+* **Resolution:** $128 \times 128$ (2 panels).
+* **Refresh Rate:** **50.00 FPS** (10.00 MHz DCLK).
+* **Specialty:** Frame rate mathematically locked to 100 Hz ripple of 50 Hz AC mains ($2 \times 50\text{ Hz}$). Beat frequency $F_{\text{beat}} = 0.00\text{ Hz}$ guarantees zero rolling dark shutter bands on video cameras even when powered by unshielded switching power supplies.
+* **Target Audience:** Studio video shoots, broadcasting, and camera benchmarking.
+
+### 3. `matrix_128x64_single` (Single Panel Standalone v1.0)
+* **Resolution:** $128 \times 64$ (1 panel).
+* **Refresh Rate:** **99.4 FPS**.
+* **Specialty:** Lightweight standalone sketch without Wi-Fi stack featuring a built-in calibration splash art.
+* **Target Audience:** Rapid hardware verification when unpacking new panels or testing cables.
+
+---
+
+## 🛠️ How to Change the Number of Panels (1, 2, 4 Panels)
+
+The cascaded DP3356 driver pipeline scales flexibly:
+
+### Option A: Single Panel 128×64 (1 Module)
+1. **Physics:** 8 cascaded DP3356 ICs per row line.
+2. **Code adjustments:**
+   ```cpp
+   #define MATRIX_WIDTH      128
+   #define MATRIX_HEIGHT     64
+   #define CHAINED_CHIPS     8      // 8 chips per panel line (instead of 16)
+   ```
+3. **DMA Buffer:** 8 chips require 2048 shift bytes (instead of 4096):
+   ```cpp
+   static uint8_t s_shift_buf[ROWS][2048]; // 32 rows x 2048 bytes
+   ```
+   In the GDMA descriptor chain, `s_desc_shift_a` links directly to `s_desc_suffix`, omitting `s_desc_shift_b`.
+
+---
+
+### Option B: Dual Panels 128×128 (Default Configuration)
+* 2 panels ($128 \times 64$ each) arranged vertically (Panel 1 on top, Panel 2 on bottom).
+* Ribbon cable from ESP32 connects to **INPUT of Panel 1**. Output of Panel 1 connects to **INPUT of Panel 2**.
+* In code:
+   ```cpp
+   #define MATRIX_WIDTH      128
+   #define MATRIX_HEIGHT     128
+   #define CHAINED_CHIPS     16     // 8 chips Panel 2 + 8 chips Panel 1
+   ```
+   Row shift payload: $16 \text{ chips} \times 16 \text{ channels} \times 16 \text{ bits} = 4096\text{ bytes}$ per row (2 GDMA descriptors of 2048 bytes each).
+
+---
+
+### Option C: Quad Panels 256×128 (Wide Display Wall)
+* 2 top panels arranged horizontally, 2 bottom panels arranged beneath them.
+* In daisy-chain topology `CHAINED_CHIPS = 32`:
+   ```cpp
+   #define MATRIX_WIDTH      256
+   #define MATRIX_HEIGHT     128
+   #define CHAINED_CHIPS     32
+   ```
+   Row shift payload: $32 \times 16 \times 16 = 8192\text{ bytes}$ (4 descriptors of 2048 bytes). DCLK should run at 20–25 MHz to maintain high refresh rate.
+   **Power:** Quad panels require a **5V 40A–60A power supply** with dedicated 2.5 mm² power feeds to each panel.
+
+---
+
+## 🔌 Wiring & HUB75 Pinout (HUB75 ➔ ESP32-S3 Super Mini)
+
+| HUB75 Pin | Signal | Description | ESP32-S3 Pin | Notes |
+| :---: | :---: | :--- | :---: | :--- |
+| **Pin 1** | **R1** | Red data (Top half) | **GPIO 4** | Parallel data line |
+| **Pin 2** | **G1** | Green data (Top half) | **GPIO 5** | Parallel data line |
+| **Pin 3** | **B1** | Blue data (Top half) | **GPIO 6** | Parallel data line |
+| **Pin 4** | **GND** | Ground | **GND** | Common ground with PSU |
+| **Pin 5** | **R2** | Red data (Bottom half) | **GPIO 7** | Parallel data line |
+| **Pin 6** | **G2** | Green data (Bottom half) | **GPIO 15** | Parallel data line |
+| **Pin 7** | **B2** | Blue data (Bottom half) | **GPIO 16** | Parallel data line |
+| **Pin 8** | **GND** | Ground | **GND** | Common ground with PSU |
+| **Pin 9** | **A** | DP32020A: Row Clock & Blanking (**DCK**) | **GPIO 18** | Blanking & PMOS shift |
+| **Pin 10** | **B** | DP32020A: Config Clock (**BK/RCK**) | **GPIO 8** | Tied permanently LOW |
+| **Pin 11** | **C** | DP32020A: Row Serial Data (**DIN**) | **GPIO 3** | Row 0 frame marker |
+| **Pin 12** | **GND** | Ground | **GND** | Common ground with PSU |
+| **Pin 13** | **CLK** | DP3356: Shift Clock (**DCLK**) | **GPIO 41** | 20.21 MHz LCD_CAM PCLK |
+| **Pin 14** | **LAT** | DP3356: Latch Enable (**LE**) | **GPIO 40** | Latch / VSYNC pulse |
+| **Pin 15** | **OE** | DP3356: Row Switch Trigger (**ROW**) | **GPIO 2** | Triggers S-PWM cycle |
+| **Pin 16** | **GND** | Ground | **GND** | Common ground with PSU |
+
+> ⚠️ **CRITICAL WARNING:** **GPIO 42 (MTMS)** on ESP32-S3 is an SoC hardware strapping pin. It **must NEVER be connected to any HUB75 pin**, or the board will hang on power-on in JTAG mode.
+
+---
+
+## ⚙️ Build and Flash Settings
+
+### Arduino IDE Board Settings:
+* **Board:** `ESP32S3 Dev Module`
+* **USB CDC On Boot:** **`Enabled`** *(Mandatory for native USB serial connectivity)*
+* **Flash Mode:** **`DIO 80MHz`** *(Mandatory! QIO causes `ets_loader.c 78` panic)*
+* **Flash Size:** `4MB (32Mb)`
+* **Partition Scheme:** `Default 4MB with spiffs (1.2MB APP / 1.5MB SPIFFS/LittleFS)`
+* **PSRAM:** **`QSPI PSRAM`** *(Mandatory for TrueColor double-buffering)*
+* **CPU Frequency:** `240MHz`
+
+### 1-Click Flashing via `compile_and_flash.bat`:
+Run the batch helper in the repository root:
+```cmd
+compile_and_flash.bat
+```
+It prompts you to choose the target firmware, compiles it with the exact DIO/PSRAM/CDC flags, and uploads directly to the connected ESP32-S3 on COM11.
+
+---
+
+## 📄 Additional Documentation
+* [FULL_PROJECT_REPORT_77HZ_TRUECOLOR.md](file:///c:/Users/Liga.inc/Desktop/esp_wibe/matrix_128x128_TrueColor_Brightness_Studio/FULL_PROJECT_REPORT_77HZ_TRUECOLOR.md) — Comprehensive technical report on DP3356 register physics, Kimi trials, and 77 Hz tuning.
+* [ESP32_S3_SUPERMINI_CHEAT_SHEET.md](file:///c:/Users/Liga.inc/Desktop/esp_wibe/ESP32_S3_SUPERMINI_CHEAT_SHEET.md) — ESP32-S3 Super Mini hardware cheat sheet (boot panic fixes, pinout, upload resets).
+* [matrix_128x128_TrueColor_Brightness_Studio/README.md](file:///c:/Users/Liga.inc/Desktop/esp_wibe/matrix_128x128_TrueColor_Brightness_Studio/README.md) — TrueColor Studio firmware details.
+
+---
+
+## License
+Distributed under the **MIT License**.
+Developed 100% autonomously by Google DeepMind Antigravity AI in tandem with human observation.
