@@ -440,6 +440,58 @@
             accent-color: var(--accent);
         }
 
+        /* Global Screen Brightness Master Bar */
+        .screen-brightness-wrapper {
+            max-width: 1200px;
+            margin: 0 auto 14px;
+            padding: 0 16px;
+        }
+
+        .screen-brightness-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .brightness-label-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 250px;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .brightness-icon {
+            font-size: 1.25rem;
+        }
+
+        .brightness-badge {
+            background: rgba(0, 240, 255, 0.15);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-family: monospace;
+            min-width: 52px;
+            text-align: center;
+        }
+
+        .screen-brightness-slider {
+            flex: 1;
+            accent-color: var(--accent);
+            height: 7px;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+        }
+
         /* Live status toast */
         .toast {
             position: fixed;
@@ -462,13 +514,25 @@
     <header>
         <div class="brand">
             <span>⚡ MATRIX STUDIO</span>
-            <span class="brand-badge">128×128 PRO</span>
+            <span class="brand-badge">128×128 PRO 77Hz</span>
         </div>
         <div class="status-badge">
             <div class="status-dot"></div>
             <span id="wsStatus">Демо-режим (Превью)</span>
         </div>
     </header>
+
+    <!-- Global Screen Brightness Master Bar -->
+    <div class="screen-brightness-wrapper">
+        <div class="screen-brightness-card">
+            <div class="brightness-label-group">
+                <span class="brightness-icon">☀️</span>
+                <span class="brightness-title">Яркость экрана (77 Гц):</span>
+                <span class="brightness-badge" id="screenBrightnessVal">100%</span>
+            </div>
+            <input type="range" id="screenBrightnessSlider" min="5" max="100" value="100" step="1" class="screen-brightness-slider">
+        </div>
+    </div>
 
     <!-- Mode Selector Radio Buttons -->
     <div class="mode-selector">
@@ -819,9 +883,12 @@
             ws.binaryType = "arraybuffer";
 
             ws.onopen = () => {
-                document.getElementById('wsStatus').textContent = "● Подключено к ESP32";
+                document.getElementById('wsStatus').textContent = "● Подключено к ESP32 (77 Гц)";
                 document.getElementById('wsStatus').style.color = "#00ff66";
-                showToast("Подключено к экрану ESP32-S3!");
+                showToast("Подключено к экрану ESP32-S3 (77 Гц Turbo)!");
+                const curBrightness = parseInt(screenBrightnessSlider.value) || 100;
+                const pkt = new Uint8Array([0x06, curBrightness]);
+                ws.send(pkt.buffer);
             };
 
             ws.onmessage = (event) => {
@@ -2016,6 +2083,34 @@
 
         const initialMode = localStorage.getItem('matrix_boot_mode') || localStorage.getItem('matrix_active_mode') || 'draw';
         selectMode(initialMode);
+
+        // ==================== SCREEN HARDWARE BRIGHTNESS ====================
+        const screenBrightnessSlider = document.getElementById('screenBrightnessSlider');
+        const screenBrightnessVal = document.getElementById('screenBrightnessVal');
+        let brightnessDebounceTimer = null;
+
+        function updateScreenBrightness(pct) {
+            screenBrightnessVal.textContent = pct + '%';
+            localStorage.setItem('matrix_screen_brightness', pct);
+            
+            if (brightnessDebounceTimer) clearTimeout(brightnessDebounceTimer);
+            brightnessDebounceTimer = setTimeout(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const pkt = new Uint8Array([0x06, parseInt(pct)]);
+                    ws.send(pkt.buffer);
+                }
+            }, 25);
+        }
+
+        screenBrightnessSlider.addEventListener('input', (e) => {
+            updateScreenBrightness(e.target.value);
+        });
+
+        const savedScreenBrightness = localStorage.getItem('matrix_screen_brightness');
+        if (savedScreenBrightness !== null) {
+            screenBrightnessSlider.value = savedScreenBrightness;
+            screenBrightnessVal.textContent = savedScreenBrightness + '%';
+        }
 
         // ==================== COMMON BINARY FRAME TRANSMISSION ====================
         // Converts RGBA canvas data into optimized 1-byte RGB bitmap stream (16 KB) for instant Wi-Fi transmission

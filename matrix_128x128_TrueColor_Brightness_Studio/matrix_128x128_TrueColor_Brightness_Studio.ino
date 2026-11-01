@@ -74,9 +74,9 @@
 static const uint16_t DP3356_CONFIG_REGS[13] = {
     0x021F, // 32 линии сканирования (31 + 1)
     0x033F, // group num = 63
-    0x047F, // максимальное время активного ШИМ
+    0x04FF, // МАКСИМАЛЬНАЯ ДЛИТЕЛЬНОСТЬ ШИМ (255 вместо 127)
     0x0504,
-    0x0642, // Биты [7:6] = 01 (ВКЛЮЧЕН ВНУТРЕННИЙ PLL)
+    0x0640, // PLL GCLK МНОЖИТЕЛЬ x1 (вместо x3) -> ШИМ пачка растянута на всё окно строки!
     0x0700,
     0x08FF, // МАКСИМАЛЬНЫЙ ТОК 200% (255 / 255)
     0x0960,
@@ -96,9 +96,13 @@ static volatile uint32_t s_rx_frame_counter = 0;
 
 #define ACTIVE_FRAME_BYTES (ROWS * 16 * CHAINED_CHIPS * sizeof(uint32_t))
 #define FRAME_LEGACY_BYTES (MATRIX_WIDTH * MATRIX_HEIGHT + 3)
-#define FRAME_RGB_BYTES    (MATRIX_WIDTH * MATRIX_HEIGHT * 3 + 3)
+#define RAW_RGB_BYTES      (MATRIX_WIDTH * MATRIX_HEIGHT * 3)
+#define FRAME_RGB_BYTES    (RAW_RGB_BYTES + 3)
 #define FRAME_PACKET_BYTES (FRAME_RGB_BYTES + 4)
 #define GRAY_FRAME_BYTES   (ROWS * 16 * CHAINED_CHIPS * 6 * sizeof(uint16_t))
+
+static uint8_t *s_raw_rgb888 = NULL;
+static uint8_t s_display_brightness_pct = 100;
 
 // Буферы DMA в быстрой внутренней памяти SRAM (DRAM)
 // 1. Сдвиг данных: 32 строки × 4096 байт = 128 КБ
@@ -108,7 +112,7 @@ static uint8_t s_shift_buf[ROWS][4096] __attribute__((aligned(4)));
 static uint8_t s_suffix_buf[ROWS][32]  __attribute__((aligned(4)));
 
 // 3. Общий буфер свечения (Dwell): 2124 байта нулей, общий для всех 32 строк!
-#define DWELL_BYTES 2124
+#define DWELL_BYTES 4000
 static uint8_t s_dwell_buf[DWELL_BYTES] __attribute__((aligned(4)));
 
 // 4. Буфер аппаратного VSYNC: 16 байт (3 такта LAT = 1, затем 0)
@@ -162,17 +166,21 @@ static void dp3364_init() {
 }
 
 // ---------------- Построение тестового шаблона и Gamma 2.4 ----------------
-static void build_gamma_table() {
+static void build_gamma_table(float factor = 1.0f) {
+    if (factor < 0.01f) factor = 0.01f;
+    if (factor > 1.00f) factor = 1.00f;
     for (uint32_t i = 0; i < 256; ++i) {
         const float s = (float)i / 255.0f;
         const float linear = (s <= 0.04045f)
             ? (s / 12.92f)
             : powf((s + 0.055f) / 1.055f, 2.4f);
-        uint32_t v = (uint32_t)(linear * (float)GRAY_MAX + 0.5f);
+        uint32_t v = (uint32_t)(linear * (float)GRAY_MAX * factor + 0.5f);
         if (v > GRAY_MAX) v = GRAY_MAX;
         srgbToLinear14[i] = (uint16_t)v;
     }
 }
+
+static void set_display_brightness(uint8_t pct);
 
 static void set_gray_pixel(uint32_t x, uint32_t y, uint8_t r, uint8_t g, uint8_t b) {
     if (x >= MATRIX_WIDTH || y >= MATRIX_HEIGHT) return;
@@ -240,7 +248,10 @@ static void pack_dma_line(uint32_t line) {
 }
 
 static void apply_full_rgb888(const uint8_t *rgb_data, size_t len) {
-    if (len < MATRIX_WIDTH * MATRIX_HEIGHT * 3) return;
+    if (len < RAW_RGB_BYTES) return;
+    if (s_raw_rgb888 != NULL && rgb_data != s_raw_rgb888) {
+        memcpy(s_raw_rgb888, rgb_data, RAW_RGB_BYTES);
+    }
     size_t idx = 0;
     for (uint32_t y = 0; y < MATRIX_HEIGHT; ++y) {
         const uint32_t line = y % 32;
@@ -259,6 +270,23 @@ static void apply_full_rgb888(const uint8_t *rgb_data, size_t len) {
     }
     s_frame_dirty = true;
     s_rx_frame_counter++;
+}
+
+static void pack_dma_stream();
+static void sync_gray_from_active_frame();
+
+static void set_display_brightness(uint8_t pct) {
+    if (pct < 5) pct = 5;
+    if (pct > 100) pct = 100;
+    s_display_brightness_pct = pct;
+    build_gamma_table((float)pct / 100.0f);
+    if (s_raw_rgb888 != NULL) {
+        apply_full_rgb888(s_raw_rgb888, RAW_RGB_BYTES);
+    } else {
+        sync_gray_from_active_frame();
+    }
+    pack_dma_stream();
+    Serial.printf("[BRIGHTNESS] Screen hardware brightness set to %u%%\n", s_display_brightness_pct);
 }
 
 static void apply_full_bitmap(const uint8_t *bitmap_data, size_t len) {
@@ -413,11 +441,11 @@ static void init_hardware_pipeline() {
     periph_module_enable(PERIPH_LCD_CAM_MODULE);
     periph_module_reset(PERIPH_LCD_CAM_MODULE);
 
-    // 3. Конфигурация генератора тактовой частоты: PLL160 / 16 = 10.000 МГц
+    // 3. Конфигурация генератора тактовой частоты: PLL160 / 8 = 20.000 МГц (77 FPS / 77 Hz!)
     LCD_CAM.lcd_clock.val = 0;
     LCD_CAM.lcd_clock.clk_en = 1;
     LCD_CAM.lcd_clock.lcd_clk_sel = 3;       // 3 = PLL160M в ESP32 Core 2.0.17
-    LCD_CAM.lcd_clock.lcd_clkm_div_num = 16;
+    LCD_CAM.lcd_clock.lcd_clkm_div_num = 8;  // 160 / 8 = 20.000 МГц (77 Гц развертка!)
     LCD_CAM.lcd_clock.lcd_clkm_div_b = 0;
     LCD_CAM.lcd_clock.lcd_clkm_div_a = 1;
     LCD_CAM.lcd_clock.lcd_clk_equ_sysclk = 1;
@@ -530,7 +558,9 @@ static bool allocate_frame_buffers() {
         ROWS * 16 * CHAINED_CHIPS * 6 * sizeof(uint16_t));
     active_frame = (uint32_t (*)[16][CHAINED_CHIPS])ps_malloc(ACTIVE_FRAME_BYTES);
     s_frame_recv_buf = (uint8_t *)ps_malloc(FRAME_PACKET_BYTES);
-    return grayFrame && active_frame && s_frame_recv_buf;
+    s_raw_rgb888 = (uint8_t *)ps_malloc(RAW_RGB_BYTES);
+    if (s_raw_rgb888) memset(s_raw_rgb888, 0, RAW_RGB_BYTES);
+    return grayFrame && active_frame && s_frame_recv_buf && s_raw_rgb888;
 }
 
 static void onWsEvent(AsyncWebSocket *socket, AsyncWebSocketClient *client,
@@ -554,6 +584,11 @@ static void onWsEvent(AsyncWebSocket *socket, AsyncWebSocketClient *client,
     if (type != WS_EVT_DATA) return;
     AwsFrameInfo *info = (AwsFrameInfo *)arg;
     if (info->opcode != WS_BINARY) return;
+
+    if (info->index == 0 && info->final && len >= 2 && data[0] == 0x06) {
+        set_display_brightness(data[1]);
+        return;
+    }
 
     if (info->len == 6 && info->index == 0 && info->final && len == 6 && data[0] == 0x01) {
         uint8_t x = data[1], y = data[2];
@@ -621,6 +656,11 @@ static void onWsEvent(AsyncWebSocket *socket, AsyncWebSocketClient *client,
             mode_file.println(mode);
             mode_file.close();
         }
+        File bright_file = LittleFS.open("/boot_bright.txt", "w");
+        if (bright_file) {
+            bright_file.println(s_display_brightness_pct);
+            bright_file.close();
+        }
         if (ok) ws.textAll("SAVED_OK");
         else ws.textAll("SAVE_ERR");
     }
@@ -673,9 +713,17 @@ void setup() {
         while (true) delay(1000);
     }
 
-    build_gamma_table();
     bool loaded_saved = false;
     if (LittleFS.begin(true)) {
+        if (LittleFS.exists("/boot_bright.txt")) {
+            File bf = LittleFS.open("/boot_bright.txt", "r");
+            if (bf) {
+                int b = bf.parseInt();
+                if (b >= 5 && b <= 100) s_display_brightness_pct = b;
+                bf.close();
+            }
+        }
+        build_gamma_table((float)s_display_brightness_pct / 100.0f);
         if (LittleFS.exists("/boot_gray.bin")) {
             File gf = LittleFS.open("/boot_gray.bin", "r");
             if (gf) {
