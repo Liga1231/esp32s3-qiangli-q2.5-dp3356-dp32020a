@@ -12,6 +12,9 @@ temp_code.txt
 *.bak
 
 # Temporary evaluation and research files
+*trial*
+*trial*/
+lcd_cam_dma_engine.ino
 search_*.py
 fetch_*.py
 bing_search.py
