@@ -17,6 +17,7 @@
 ---
 
 ## 🌐 Language Navigation / Выбор языка
+* 📖 **[Полное руководство по архитектуре и протоколу / Complete Hardware & Protocol Guide (HARDWARE_ARCHITECTURE_AND_PROTOCOL_GUIDE.md)](HARDWARE_ARCHITECTURE_AND_PROTOCOL_GUIDE.md)** — *Эталонный гайд для разработчиков и AI-агентов*
 * [🇷🇺 **Русская версия (Russian Version)**](#-русская-версия)
   * [📡 Быстрое подключение к экрану / Wi-Fi](#-быстрое-подключение-к-экрану--wi-fi-credentials)
   * [🤖 Автономная разработка ИИ](#-100-автономная-разработка-искусственным-интеллектом-без-ручного-вмешательства)
